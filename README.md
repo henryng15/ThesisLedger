@@ -41,21 +41,21 @@ cd backend && .venv/bin/python -m pytest
 
 ## API status
 
-`companies` reads the database. Every other endpoint returns hard-coded JSON matching
-[docs/api_contract.md](docs/api_contract.md) until real persistence lands (Days 3–4);
-`apps/ledger/tests.py` asserts those shapes so the swap cannot drift.
+Thesis and claim endpoints are backed by the database. The analysis job lifecycle is
+still a fixture until Day 4. Shapes come from [docs/api_contract.md](docs/api_contract.md)
+and `apps/ledger/tests.py` asserts them, so swapping a stub cannot drift the contract.
 
 | Endpoint | State |
 |---|---|
 | `GET /api/health/` | real |
 | `GET /api/companies/` | real (seeded) |
-| `POST /api/theses/` | stub, validation real |
-| `GET /api/theses/{id}/` | stub |
-| `POST /api/theses/{id}/claims:generate` | stub |
-| `PATCH` / `DELETE /api/claims/{id}/` | stub |
-| `POST /api/theses/{id}/claims:approve` | stub |
-| `POST /api/theses/{id}/analyze` | stub |
-| `GET /api/jobs/{id}/` | stub |
+| `POST /api/theses/` | real |
+| `GET /api/theses/{id}/` | real |
+| `POST /api/theses/{id}/claims:generate` | real persistence, claim text still mocked (LLM on Day 7) |
+| `PATCH` / `DELETE /api/claims/{id}/` | real |
+| `POST /api/theses/{id}/claims:approve` | real |
+| `POST /api/theses/{id}/analyze` | validates approvals, returns a fixture job id |
+| `GET /api/jobs/{id}/` | fixture |
 
 ## Layout
 

@@ -90,7 +90,7 @@ Same shape as above, with `claims` populated once generated.
 
 Extract up to 5 claims. Day 2–3: fixed mock list. Day 7: LangGraph extraction node.
 
-Request body: none (or `{"force": true}` to regenerate and replace existing claims).
+Request body: none (or `{"force": true}` to regenerate and replace existing claims — the old claims are deleted, so their ids change).
 
 Response `201`:
 

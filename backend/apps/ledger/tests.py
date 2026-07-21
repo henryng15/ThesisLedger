@@ -1,14 +1,14 @@
-"""Contract tests: every stub response must match docs/api_contract.md.
+"""Contract + persistence tests for the ledger API (docs/api_contract.md).
 
-These are the guard rail for Days 3–4 — when the stubs are swapped for real
-persistence, the shapes asserted here must keep holding.
+Thesis and claim endpoints are backed by the database from Day 3 on; the job
+endpoint still serves the Day 2 fixture, so its test only guards the shape.
 """
 
 import pytest
 from django.urls import reverse
 
-from apps.ledger.models import Company
-from apps.ledger.stubs import STUB_CLAIM_IDS, STUB_JOB_ID, STUB_THESIS_ID
+from apps.ledger.models import Claim, Company, Thesis
+from apps.ledger.stubs import STUB_JOB_ID
 
 CLAIM_FIELDS = {"id", "ordinal", "text", "origin", "is_approved"}
 THESIS_FIELDS = {"id", "company", "text", "status", "claims", "created_at"}
@@ -26,10 +26,32 @@ JOB_FIELDS = {
     "results",
 }
 
+UNKNOWN_UUID = "99999999-9999-4999-8999-999999999999"
+
 
 @pytest.fixture
 def company(db) -> Company:
     return Company.objects.create(ticker="AAPL", name="Apple Inc.", cik="0000320193")
+
+
+@pytest.fixture
+def thesis(company) -> Thesis:
+    return Thesis.objects.create(company=company, text="Services outgrow hardware.")
+
+
+@pytest.fixture
+def claims(thesis) -> list[Claim]:
+    return [
+        Claim.objects.create(thesis=thesis, ordinal=ordinal, text=f"Claim {ordinal}.")
+        for ordinal in range(3)
+    ]
+
+
+def post_json(client, url, payload=None):
+    return client.post(url, payload or {}, content_type="application/json")
+
+
+# --- companies -------------------------------------------------------------
 
 
 @pytest.mark.django_db
@@ -52,12 +74,15 @@ def test_company_list_hides_inactive(client, company):
     assert client.get(reverse("company-list")).json()["results"] == []
 
 
+# --- thesis create / read --------------------------------------------------
+
+
 @pytest.mark.django_db
-def test_create_thesis_returns_contract_shape(client, company):
-    response = client.post(
+def test_create_thesis_persists_row(client, company):
+    response = post_json(
+        client,
         reverse("thesis-create"),
         {"company_id": str(company.id), "text": "Services outgrow hardware."},
-        content_type="application/json",
     )
 
     assert response.status_code == 201
@@ -65,30 +90,40 @@ def test_create_thesis_returns_contract_shape(client, company):
     assert set(body) == THESIS_FIELDS
     assert body["status"] == "draft"
     assert body["claims"] == []
-    assert body["text"] == "Services outgrow hardware."
     assert set(body["company"]) == {"id", "ticker", "name"}
+
+    stored = Thesis.objects.get(id=body["id"])
+    assert stored.text == "Services outgrow hardware."
+    assert stored.company_id == company.id
 
 
 @pytest.mark.django_db
 def test_create_thesis_rejects_blank_text(client, company):
-    response = client.post(
-        reverse("thesis-create"),
-        {"company_id": str(company.id), "text": "  "},
-        content_type="application/json",
+    response = post_json(
+        client, reverse("thesis-create"), {"company_id": str(company.id), "text": "  "}
     )
 
     assert response.status_code == 400
     error = response.json()["error"]
     assert error["code"] == "validation_error"
     assert error["field"] == "text"
+    assert Thesis.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_create_thesis_rejects_text_over_limit(client, company):
+    response = post_json(
+        client, reverse("thesis-create"), {"company_id": str(company.id), "text": "x" * 5001}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["field"] == "text"
 
 
 @pytest.mark.django_db
 def test_create_thesis_unknown_company_is_404(client, company):
-    response = client.post(
-        reverse("thesis-create"),
-        {"company_id": "99999999-9999-4999-8999-999999999999", "text": "Anything."},
-        content_type="application/json",
+    response = post_json(
+        client, reverse("thesis-create"), {"company_id": UNKNOWN_UUID, "text": "Anything."}
     )
 
     assert response.status_code == 404
@@ -96,32 +131,81 @@ def test_create_thesis_unknown_company_is_404(client, company):
 
 
 @pytest.mark.django_db
-def test_thesis_detail_shape(client, company):
-    response = client.get(reverse("thesis-detail", args=[STUB_THESIS_ID]))
+def test_thesis_detail_returns_persisted_claims(client, thesis, claims):
+    response = client.get(reverse("thesis-detail", args=[thesis.id]))
 
     assert response.status_code == 200
     body = response.json()
     assert set(body) == THESIS_FIELDS
-    assert body["id"] == STUB_THESIS_ID
+    assert body["id"] == str(thesis.id)
+    assert [claim["text"] for claim in body["claims"]] == ["Claim 0.", "Claim 1.", "Claim 2."]
     assert all(set(claim) == CLAIM_FIELDS for claim in body["claims"])
 
 
 @pytest.mark.django_db
-def test_generate_claims_returns_at_most_five(client):
-    response = client.post(reverse("claims-generate", args=[STUB_THESIS_ID]))
+def test_thesis_detail_unknown_id_is_404(client, company):
+    response = client.get(reverse("thesis-detail", args=[UNKNOWN_UUID]))
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+# --- claim generation ------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_generate_claims_persists_at_most_five(client, thesis):
+    response = post_json(client, reverse("claims-generate", args=[thesis.id]))
 
     assert response.status_code == 201
     body = response.json()
     assert set(body) == {"thesis_id", "status", "claims"}
     assert body["status"] == "claims_generated"
-    assert 0 < len(body["claims"]) <= 5
+    assert 0 < len(body["claims"]) <= Claim.MAX_PER_THESIS
     assert all(set(claim) == CLAIM_FIELDS for claim in body["claims"])
+
+    thesis.refresh_from_db()
+    assert thesis.status == Thesis.Status.CLAIMS_GENERATED
+    assert thesis.claims.count() == len(body["claims"])
+    assert list(thesis.claims.values_list("ordinal", flat=True)) == list(range(len(body["claims"])))
 
 
 @pytest.mark.django_db
-def test_patch_claim_marks_origin_user(client):
+def test_generate_claims_twice_conflicts(client, thesis):
+    post_json(client, reverse("claims-generate", args=[thesis.id]))
+    response = post_json(client, reverse("claims-generate", args=[thesis.id]))
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "conflict"
+
+
+@pytest.mark.django_db
+def test_generate_claims_force_replaces(client, thesis):
+    first = post_json(client, reverse("claims-generate", args=[thesis.id])).json()
+    second = post_json(client, reverse("claims-generate", args=[thesis.id]), {"force": True})
+
+    assert second.status_code == 201
+    new_ids = {claim["id"] for claim in second.json()["claims"]}
+    old_ids = {claim["id"] for claim in first["claims"]}
+    assert new_ids.isdisjoint(old_ids)
+    assert thesis.claims.count() == len(new_ids)
+
+
+@pytest.mark.django_db
+def test_generate_claims_unknown_thesis_is_404(client, company):
+    response = post_json(client, reverse("claims-generate", args=[UNKNOWN_UUID]))
+
+    assert response.status_code == 404
+
+
+# --- claim edit / delete ---------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_patch_claim_persists_text_and_marks_origin_user(client, claims):
+    claim = claims[0]
     response = client.patch(
-        reverse("claim-detail", args=[STUB_CLAIM_IDS[0]]),
+        reverse("claim-detail", args=[claim.id]),
         {"text": "Edited claim."},
         content_type="application/json",
     )
@@ -129,52 +213,113 @@ def test_patch_claim_marks_origin_user(client):
     assert response.status_code == 200
     body = response.json()
     assert set(body) == CLAIM_FIELDS
-    assert body["text"] == "Edited claim."
-    assert body["origin"] == "user"
+    claim.refresh_from_db()
+    assert claim.text == "Edited claim."
+    assert claim.origin == Claim.Origin.USER
 
 
 @pytest.mark.django_db
-def test_delete_claim_returns_204(client):
-    response = client.delete(reverse("claim-detail", args=[STUB_CLAIM_IDS[0]]))
+def test_patch_claim_rejects_blank_text(client, claims):
+    response = client.patch(
+        reverse("claim-detail", args=[claims[0].id]),
+        {"text": "   "},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["field"] == "text"
+
+
+@pytest.mark.django_db
+def test_delete_claim_removes_row(client, claims):
+    response = client.delete(reverse("claim-detail", args=[claims[0].id]))
 
     assert response.status_code == 204
     assert response.content == b""
+    assert not Claim.objects.filter(id=claims[0].id).exists()
 
 
 @pytest.mark.django_db
-def test_approve_claims_shape(client):
-    response = client.post(
-        reverse("claims-approve", args=[STUB_THESIS_ID]),
-        {"claim_ids": STUB_CLAIM_IDS[:2]},
+def test_patch_unknown_claim_is_404(client, company):
+    response = client.patch(
+        reverse("claim-detail", args=[UNKNOWN_UUID]),
+        {"text": "Nope."},
         content_type="application/json",
+    )
+
+    assert response.status_code == 404
+
+
+# --- approval --------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_approve_marks_selected_claims_only(client, thesis, claims):
+    approved_ids = [str(claims[0].id), str(claims[2].id)]
+    response = post_json(
+        client, reverse("claims-approve", args=[thesis.id]), {"claim_ids": approved_ids}
     )
 
     assert response.status_code == 200
     body = response.json()
     assert set(body) == {"thesis_id", "status", "approved_claim_ids"}
-    assert body["approved_claim_ids"] == STUB_CLAIM_IDS[:2]
+    assert body["status"] == "approved"
+    assert body["approved_claim_ids"] == approved_ids
+
+    thesis.refresh_from_db()
+    assert thesis.status == Thesis.Status.APPROVED
+    assert set(thesis.claims.filter(is_approved=True).values_list("id", flat=True)) == {
+        claims[0].id,
+        claims[2].id,
+    }
 
 
 @pytest.mark.django_db
-def test_approve_rejects_empty_list(client):
-    response = client.post(
-        reverse("claims-approve", args=[STUB_THESIS_ID]),
-        {"claim_ids": []},
-        content_type="application/json",
+def test_approve_rejects_claim_from_another_thesis(client, thesis, claims, company):
+    other = Thesis.objects.create(company=company, text="Other thesis.")
+    foreign = Claim.objects.create(thesis=other, ordinal=0, text="Foreign claim.")
+
+    response = post_json(
+        client, reverse("claims-approve", args=[thesis.id]), {"claim_ids": [str(foreign.id)]}
     )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["field"] == "claim_ids"
+    foreign.refresh_from_db()
+    assert foreign.is_approved is False
+
+
+@pytest.mark.django_db
+def test_approve_rejects_empty_list(client, thesis, claims):
+    response = post_json(client, reverse("claims-approve", args=[thesis.id]), {"claim_ids": []})
 
     assert response.status_code == 400
     assert response.json()["error"]["field"] == "claim_ids"
 
 
+# --- analyze / job (stubbed until Day 4) -----------------------------------
+
+
 @pytest.mark.django_db
-def test_analyze_returns_job_id(client):
-    response = client.post(reverse("thesis-analyze", args=[STUB_THESIS_ID]))
+def test_analyze_requires_an_approved_claim(client, thesis, claims):
+    response = post_json(client, reverse("thesis-analyze", args=[thesis.id]))
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.django_db
+def test_analyze_returns_job_id(client, thesis, claims):
+    claims[0].is_approved = True
+    claims[0].save(update_fields=["is_approved"])
+
+    response = post_json(client, reverse("thesis-analyze", args=[thesis.id]))
 
     assert response.status_code == 202
     body = response.json()
     assert set(body) == {"job_id", "status", "thesis_id", "total_claims"}
     assert body["status"] == "pending"
+    assert body["total_claims"] == 1
 
 
 @pytest.mark.django_db
