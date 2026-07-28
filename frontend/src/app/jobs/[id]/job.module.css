@@ -1,0 +1,91 @@
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.backLink {
+  font-size: 0.85rem;
+  align-self: flex-start;
+}
+
+.title {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.badgePending {
+  background: var(--color-amber-bg);
+  color: var(--color-amber-text);
+  border-color: var(--color-amber-border);
+}
+
+.badgeRunning {
+  background: var(--color-neutral-bg);
+  color: var(--color-neutral-text);
+  border-color: var(--color-neutral-border);
+}
+
+.badgeDone {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+}
+
+.badgeFailed {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-border);
+}
+
+.progressText {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.progressTrack {
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-neutral-bg);
+  overflow: hidden;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-navy);
+  transition: width 300ms ease;
+}
+
+.resultList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.waiting {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}

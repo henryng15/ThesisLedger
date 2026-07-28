@@ -1,0 +1,108 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem 1.25rem;
+}
+
+.claimRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.claimText {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.ordinal {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  margin-right: 0.4rem;
+}
+
+.badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.badgeSupported {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: var(--color-success-border);
+}
+
+.badgeContradicted {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-color: var(--color-danger-border);
+}
+
+.badgeInsufficient {
+  background: var(--color-amber-bg);
+  color: var(--color-amber-text);
+  border-color: var(--color-amber-border);
+}
+
+.explanation {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.quote {
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border-left: 3px solid var(--color-navy);
+  background: var(--color-bg);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--color-text);
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.metaItem {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.metaLabel {
+  font-weight: 600;
+}
+
+.similarity {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.noCitation {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.sourceLink {
+  color: var(--color-navy);
+  text-decoration: underline;
+}
