@@ -1,0 +1,171 @@
+version: "3.9"
+
+# Production Docker Compose configuration for Oracle Cloud ARM (Ampere A1) VM
+# 4 vCPU, 24GB RAM
+#
+# Services:
+# - caddy: Reverse proxy (automatic HTTPS, routes to frontend + backend)
+# - db: PostgreSQL + pgvector for embedding storage
+# - redis: Celery broker + cache
+# - ollama: Local LLM/embedding inference
+#
+# Frontend and API containers are deployed externally (systemd or separate orchestration).
+# Update Caddyfile if deploying them in Docker.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: thesisledger-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      # ACME email for Let's Encrypt (required for automatic HTTPS)
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+    networks:
+      - thesisledger-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - db
+      - redis
+      - ollama
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: thesisledger-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-thesisledger}
+      POSTGRES_USER: ${POSTGRES_USER:-thesisledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?error}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - thesisledger-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-thesisledger} -d ${POSTGRES_DB:-thesisledger}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: thesisledger-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?error}"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - thesisledger-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: thesisledger-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_models_prod:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    networks:
+      - thesisledger-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - with-ollama
+
+  # Frontend service (placeholder for when deployed in Docker)
+  # Uncomment and configure when deploying Next.js container
+  # frontend:
+  #   image: ${DOCKER_REGISTRY:-registry.example.com}/thesisledger-frontend:${IMAGE_TAG:-latest}
+  #   container_name: thesisledger-frontend
+  #   restart: unless-stopped
+  #   environment:
+  #     NEXT_PUBLIC_API_BASE_URL: https://${DOMAIN:-localhost}/api
+  #   networks:
+  #     - thesisledger-net
+  #   depends_on:
+  #     - caddy
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+
+  # Backend API service (placeholder for when deployed in Docker)
+  # Uncomment and configure when deploying Django container
+  # backend:
+  #   image: ${DOCKER_REGISTRY:-registry.example.com}/thesisledger-backend:${IMAGE_TAG:-latest}
+  #   container_name: thesisledger-backend
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+  #     OLLAMA_BASE_URL: http://ollama:11434
+  #   networks:
+  #     - thesisledger-net
+  #   depends_on:
+  #     - db
+  #     - redis
+  #     - ollama
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+
+volumes:
+  pgdata_prod:
+    driver: local
+  redis_data_prod:
+    driver: local
+  ollama_models_prod:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  thesisledger-net:
+    driver: bridge
