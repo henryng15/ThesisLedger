@@ -4,6 +4,7 @@ django-cors-headers==4.7.0
 psycopg[binary]==3.2.9
 pgvector==0.4.1
 python-dotenv==1.1.1
+requests==2.32.3
 drf-spectacular==0.28.0
 
 # Dev / test

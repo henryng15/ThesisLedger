@@ -13,7 +13,9 @@ from rest_framework.response import Response
 
 from apps.ledger import stubs
 from apps.ledger.claim_generation import generate_claims
-from apps.ledger.models import Claim, Company, Thesis
+from apps.ledger.graph import run_graph
+from apps.ledger.models import AnalysisJob, Claim, Company, Thesis
+from apps.ledger.uploads.handlers import save_uploaded_file
 from apps.ledger.serializers import (
     ClaimApproveSerializer,
     ClaimSerializer,
@@ -38,6 +40,16 @@ def _first_error(serializer) -> tuple[str, str]:
 
 def _thesis_queryset():
     return Thesis.objects.select_related("company").prefetch_related("claims")
+
+
+@api_view(["POST"])
+def upload_file(request: Request) -> Response:
+    uploaded_file = request.FILES.get("file")
+    if uploaded_file is None:
+        return api_error("validation_error", "A file is required.", http.HTTP_400_BAD_REQUEST, "file")
+
+    metadata = save_uploaded_file(uploaded_file)
+    return Response(metadata, status=http.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
@@ -170,7 +182,7 @@ def claims_approve(request: Request, thesis_id: str) -> Response:
 
 @api_view(["POST"])
 def thesis_analyze(request: Request, thesis_id: str) -> Response:
-    """Stub until Day 4 wires the AnalysisJob lifecycle."""
+    """Create a persisted analysis job and run the graph flow for approved claims."""
     thesis = Thesis.objects.filter(id=thesis_id).first()
     if thesis is None:
         return api_error("not_found", "No thesis with that id.", http.HTTP_404_NOT_FOUND)
@@ -184,10 +196,16 @@ def thesis_analyze(request: Request, thesis_id: str) -> Response:
             "claim_ids",
         )
 
+    with transaction.atomic():
+        job = AnalysisJob.objects.create(thesis=thesis, status=AnalysisJob.Status.PENDING, total_claims=approved)
+        job.status = AnalysisJob.Status.RUNNING
+        job.save(update_fields=["status", "updated_at"])
+        graph_state = run_graph(job)
+
     return Response(
         {
-            "job_id": stubs.STUB_JOB_ID,
-            "status": "pending",
+            "job_id": str(job.id),
+            "status": job.status,
             "thesis_id": str(thesis.id),
             "total_claims": approved,
         },
@@ -197,7 +215,46 @@ def thesis_analyze(request: Request, thesis_id: str) -> Response:
 
 @api_view(["GET"])
 def job_detail(request: Request, job_id: str) -> Response:
-    """Stub until Day 4."""
-    payload = dict(stubs.STUB_JOB)
-    payload["id"] = str(job_id)
-    return Response(payload)
+    """Return the persisted analysis job and its evidence rows when available."""
+    job = AnalysisJob.objects.filter(id=job_id).select_related("thesis").prefetch_related("evidence").first()
+    if job is None:
+        return api_error("not_found", "No job with that id.", http.HTTP_404_NOT_FOUND)
+
+    results = []
+    for evidence in job.evidence.select_related("claim").all():
+        results.append(
+            {
+                "claim": {"id": str(evidence.claim_id), "text": evidence.claim.text},
+                "evidence": {
+                    "id": str(evidence.id),
+                    "status": evidence.status,
+                    "explanation": evidence.explanation,
+                    "quote": evidence.quote,
+                    "similarity": evidence.similarity,
+                    "source": None
+                    if evidence.chunk is None
+                    else {
+                        "chunk_id": str(evidence.chunk_id),
+                        "section": evidence.chunk.section,
+                        "filing_type": evidence.chunk.filing.filing_type,
+                        "period_end": evidence.chunk.filing.period_end,
+                        "filed_at": evidence.chunk.filing.filed_at,
+                        "source_url": evidence.chunk.filing.source_url,
+                    },
+                },
+            }
+        )
+
+    return Response(
+        {
+            "id": str(job.id),
+            "thesis_id": str(job.thesis_id),
+            "status": job.status,
+            "progress": job.progress,
+            "total_claims": job.total_claims,
+            "error": job.error,
+            "started_at": job.started_at,
+            "finished_at": job.finished_at,
+            "results": results,
+        }
+    )

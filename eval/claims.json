@@ -1,102 +1,21 @@
-[
-  {
-    "thesis": "Apple's services revenue is growing faster than hardware sales",
-    "expected_claim": "Services segment revenue growth exceeds Products segment growth year-over-year",
-    "target_ticker": "AAPL"
-  },
-  {
-    "thesis": "Microsoft's cloud infrastructure spending is ramping up",
-    "expected_claim": "Capital expenditures for cloud and infrastructure have increased substantially in recent periods",
-    "target_ticker": "MSFT"
-  },
-  {
-    "thesis": "Google is diversifying beyond advertising",
-    "expected_claim": "Revenue from non-advertising sources including Google Cloud is growing",
-    "target_ticker": "GOOGL"
-  },
-  {
-    "thesis": "JPMorgan Chase faces rising credit loss provisions",
-    "expected_claim": "Allowance for credit losses has increased compared to prior year periods",
-    "target_ticker": "JPM"
-  },
-  {
-    "thesis": "UnitedHealth Group benefits from increasing healthcare demand",
-    "expected_claim": "Medical membership and premiums are growing in both Medicare and commercial segments",
-    "target_ticker": "UNH"
-  },
-  {
-    "thesis": "Tesla is scaling production across multiple factories",
-    "expected_claim": "Total vehicle production capacity has expanded with new gigafactory operations",
-    "target_ticker": "TSLA"
-  },
-  {
-    "thesis": "Johnson & Johnson's pharma pipeline is strong",
-    "expected_claim": "New drug approvals and pipeline advancement contributed to growth in pharmaceutical revenues",
-    "target_ticker": "JNJ"
-  },
-  {
-    "thesis": "Amazon is investing heavily in logistics",
-    "expected_claim": "Capital expenditures related to distribution centers and fulfillment infrastructure are increasing",
-    "target_ticker": "AMZN"
-  },
-  {
-    "thesis": "NVIDIA's data center business dominates revenue",
-    "expected_claim": "Data center revenue represents the largest and fastest-growing segment of NVIDIA's business",
-    "target_ticker": "NVDA"
-  },
-  {
-    "thesis": "Meta's advertising efficiency is improving",
-    "expected_claim": "Average revenue per user has increased despite competitive pressures",
-    "target_ticker": "META"
-  },
-  {
-    "thesis": "Procter & Gamble is managing inflation through pricing",
-    "expected_claim": "Price increases have offset commodity and supply chain cost pressures",
-    "target_ticker": "PG"
-  },
-  {
-    "thesis": "Bank of America faces margin compression",
-    "expected_claim": "Net interest margin has declined due to interest rate environment changes",
-    "target_ticker": "BAC"
-  },
-  {
-    "thesis": "Netflix is expanding into advertising revenue",
-    "expected_claim": "Ad-supported subscription tier has contributed new revenue streams",
-    "target_ticker": "NFLX"
-  },
-  {
-    "thesis": "ExxonMobil is reducing fossil fuel exposure",
-    "expected_claim": "Renewable energy investments and strategic pivots are being made in quarterly filings",
-    "target_ticker": "XOM"
-  },
-  {
-    "thesis": "Visa's transaction volumes are accelerating",
-    "expected_claim": "Cross-border transaction volume and domestic spending volumes have increased",
-    "target_ticker": "V"
-  },
-  {
-    "thesis": "Coca-Cola's emerging market exposure is significant",
-    "expected_claim": "International markets represent a substantial portion of total revenue and growth",
-    "target_ticker": "KO"
-  },
-  {
-    "thesis": "Boeing faces regulatory and production challenges",
-    "expected_claim": "Aircraft delivery rates and backlog are impacted by manufacturing constraints",
-    "target_ticker": "BA"
-  },
-  {
-    "thesis": "Costco is expanding warehouse count and member base",
-    "expected_claim": "New warehouse openings and membership renewals are driving revenue growth",
-    "target_ticker": "COST"
-  },
-  {
-    "thesis": "Oracle is transitioning from licenses to cloud subscriptions",
-    "expected_claim": "Cloud services and subscription revenue growth is exceeding legacy license revenue decline",
-    "target_ticker": "ORCL"
-  },
-  {
-    "thesis": "Uber is approaching profitability at scale",
-    "expected_claim": "Operating leverage improvements and positive segment margins are being achieved",
-    "target_ticker": "UBER"
-  }
-]
+﻿{
+  "thesis_claims": [
+    {
+      "thesis_id": "AAPL-2024-001",
+      "thesis_text": "Apple's services revenue will exceed 25% of total revenue by 2025",
+      "claims": [
+        {"claim_id": "AAPL-2024-001-C1", "text": "Apple's services segment revenue has grown YoY for the past 5 years", "expected_verdict": "approve", "evidence_type": "financial_statement"},
+        {"claim_id": "AAPL-2024-001-C2", "text": "Services gross margin exceeds 70%", "expected_verdict": "approve", "evidence_type": "financial_statement"}
+      ]
+    },
+    {"thesis_id": "MSFT-2024-002", "thesis_text": "Azure cloud infrastructure captures 30% market share by end of 2025", "claims": [{"claim_id": "MSFT-2024-002-C1", "text": "Microsoft Azure annual revenue growth rate exceeds 25%", "expected_verdict": "approve", "evidence_type": "financial_statement"}, {"claim_id": "MSFT-2024-002-C2", "text": "Azure is Microsoft's fastest-growing segment", "expected_verdict": "approve", "evidence_type": "management_discussion"}]},
+    {"thesis_id": "NVDA-2024-003", "thesis_text": "NVIDIA's data center revenue remains above 50% of total revenue through 2025", "claims": [{"claim_id": "NVDA-2024-003-C1", "text": "Data center segment accounts for more than half of total revenue", "expected_verdict": "approve", "evidence_type": "financial_statement"}, {"claim_id": "NVDA-2024-003-C2", "text": "Data center GPU demand is driven by AI and machine learning workloads", "expected_verdict": "approve", "evidence_type": "management_discussion"}]},
+    {"thesis_id": "AAPL-2024-004", "thesis_text": "iPhone represents less than 50% of Apple revenue by 2026", "claims": [{"claim_id": "AAPL-2024-004-C1", "text": "iPhone revenue as percentage of total has been declining", "expected_verdict": "approve", "evidence_type": "financial_statement"}, {"claim_id": "AAPL-2024-004-C2", "text": "Wearables and accessories segment is growing faster than iPhone", "expected_verdict": "approve", "evidence_type": "financial_statement"}]},
+    {"thesis_id": "MSFT-2024-005", "thesis_text": "Microsoft operating margin exceeds 40% by 2025", "claims": [{"claim_id": "MSFT-2024-005-C1", "text": "Microsoft's operating margin has improved in recent years", "expected_verdict": "approve", "evidence_type": "financial_statement"}, {"claim_id": "MSFT-2024-005-C2", "text": "Cloud services have higher margins than traditional software", "expected_verdict": "approve", "evidence_type": "management_discussion"}]},
+    {"thesis_id": "NVDA-2024-006", "thesis_text": "NVIDIA's R&D spending exceeds 20% of revenue", "claims": [{"claim_id": "NVDA-2024-006-C1", "text": "NVIDIA invests heavily in GPU architecture development", "expected_verdict": "approve", "evidence_type": "financial_statement"}, {"claim_id": "NVDA-2024-006-C2", "text": "R&D expenses have grown as percentage of revenue", "expected_verdict": "approve", "evidence_type": "financial_statement"}]},
+    {"thesis_id": "AAPL-2024-007", "thesis_text": "Apple's cash position exceeds $200 billion", "claims": [{"claim_id": "AAPL-2024-007-C1", "text": "Apple maintains substantial cash reserves", "expected_verdict": "approve", "evidence_type": "balance_sheet"}, {"claim_id": "AAPL-2024-007-C2", "text": "Cash and equivalents are key assets on Apple's balance sheet", "expected_verdict": "approve", "evidence_type": "balance_sheet"}]},
+    {"thesis_id": "MSFT-2024-008", "thesis_text": "Microsoft generates positive free cash flow of at least $40 billion annually", "claims": [{"claim_id": "MSFT-2024-008-C1", "text": "Microsoft's operating cash flow exceeds net income", "expected_verdict": "approve", "evidence_type": "cash_flow_statement"}, {"claim_id": "MSFT-2024-008-C2", "text": "Capital expenditures are reasonable relative to cash generation", "expected_verdict": "approve", "evidence_type": "cash_flow_statement"}]},
+    {"thesis_id": "NVDA-2024-009", "thesis_text": "NVIDIA's gross margin remains above 50%", "claims": [{"claim_id": "NVDA-2024-009-C1", "text": "NVIDIA has industry-leading gross margins for semiconductor products", "expected_verdict": "approve", "evidence_type": "financial_statement"}, {"claim_id": "NVDA-2024-009-C2", "text": "Premium pricing for AI GPUs supports margin expansion", "expected_verdict": "approve", "evidence_type": "management_discussion"}]},
+    {"thesis_id": "AAPL-2024-010", "thesis_text": "Apple's geographic diversification reduces concentration risk below 50% in any region", "claims": [{"claim_id": "AAPL-2024-010-C1", "text": "Apple operates in multiple geographic markets", "expected_verdict": "approve", "evidence_type": "segment_disclosure"}, {"claim_id": "AAPL-2024-010-C2", "text": "No single geographic region represents majority of revenue", "expected_verdict": "approve", "evidence_type": "segment_disclosure"}]}
+  ]
+}

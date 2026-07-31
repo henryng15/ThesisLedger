@@ -1,8 +1,4 @@
-"""Seed the company selector.
-
-Placeholder set — Developer B confirms the final three tickers on Day 5, when SEC
-ingestion needs them. Idempotent, so re-running after a change is safe.
-"""
+"""Seed the company selector with the demo companies used throughout the project."""
 
 from django.core.management.base import BaseCommand
 
