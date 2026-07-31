@@ -7,7 +7,6 @@ given a query string. Uses cosine similarity over embeddings.
 import logging
 from typing import TYPE_CHECKING
 
-from django.conf import settings
 
 if TYPE_CHECKING:
     from apps.ledger.models import Chunk

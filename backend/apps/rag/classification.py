@@ -173,7 +173,7 @@ def classify_claim(
                     break
 
             if not quote_found:
-                logger.warning(f"Quote not found in chunks, downgrading to insufficient_evidence")
+                logger.warning("Quote not found in chunks, downgrading to insufficient_evidence")
                 result.status = "insufficient_evidence"
                 result.quote = ""
                 result.chunk_id = None
