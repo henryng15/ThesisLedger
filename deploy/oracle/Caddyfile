@@ -1,0 +1,58 @@
+# Authenticated TLS gateway in front of Ollama.
+#
+# Ollama has no authentication of its own, so exposing port 11434 directly
+# would let anyone on the internet run inference on this box — or call the
+# destructive endpoints. Caddy fronts it with automatic HTTPS, a bearer token,
+# and an allowlist of the three endpoints the application actually uses.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Unauthenticated liveness probe — no model access, safe to leave open.
+	handle /health {
+		respond 200 "OK"
+	}
+
+	@authorized header Authorization "Bearer {$OLLAMA_TOKEN}"
+
+	# Only the endpoints the app uses. /api/pull, /api/delete and /api/create
+	# are deliberately not proxied — a leaked token should not let anyone
+	# rewrite what this box serves.
+	@allowed_paths path /api/embeddings /api/embed /api/chat /api/generate /api/tags
+
+	handle @allowed_paths {
+		handle @authorized {
+			reverse_proxy ollama:11434 {
+				# CPU inference on 2 cores is slow; a 3B model answering a
+				# 5-passage prompt has been measured at several minutes.
+				transport http {
+					dial_timeout 10s
+					response_header_timeout 15m
+					read_timeout 15m
+				}
+			}
+		}
+
+		respond "Unauthorized" 401
+	}
+
+	handle {
+		respond "Not found" 404
+	}
+}

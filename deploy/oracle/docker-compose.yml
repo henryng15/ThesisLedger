@@ -1,0 +1,84 @@
+# Oracle VM — inference node only.
+#
+# Everything else lives elsewhere: API + worker on Railway, Postgres on
+# Supabase, Redis on Upstash, frontend on Vercel. This box exists solely to
+# serve Ollama, so it must be reachable from the internet — which means it
+# must be authenticated. Caddy terminates TLS and checks a bearer token;
+# Ollama itself only listens on the loopback interface.
+#
+# Deploy:
+#   cd deploy/oracle
+#   cp .env.example .env   # fill in DOMAIN, ACME_EMAIL, OLLAMA_TOKEN
+#   docker compose up -d
+#   docker compose exec ollama ollama pull llama3.2:3b
+#   docker compose exec ollama ollama pull nomic-embed-text
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: thesisledger-ollama
+    restart: unless-stopped
+    # Bound to loopback on purpose. Caddy is the only way in.
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      # One request at a time. This box has 2 cores; concurrency just makes
+      # every request slower and risks the OOM killer.
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "2"
+      OLLAMA_KEEP_ALIVE: "30m"
+    networks:
+      - inference
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          # Sized for a 7.7GB box with room for the OS and Caddy.
+          memory: 5G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: thesisledger-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN required}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL required}
+      OLLAMA_TOKEN: ${OLLAMA_TOKEN:?OLLAMA_TOKEN required}
+    depends_on:
+      - ollama
+    networks:
+      - inference
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ollama_models:
+  caddy_data:
+  caddy_config:
+
+networks:
+  inference:
+    driver: bridge
