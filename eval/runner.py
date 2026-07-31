@@ -1,260 +1,346 @@
-﻿#!/usr/bin/env python3
-"""
-ThesisLedger Evaluation Runner
+#!/usr/bin/env python3
+"""ThesisLedger evaluation runner.
 
-Evaluates claim verification against expected verdicts.
-Includes retrieval metrics and accuracy calculations with graceful error handling.
+Scores the real pipeline — pgvector retrieval plus LLM classification — against
+the hand-labelled verdicts in claims.json. Nothing here is simulated: every claim
+is embedded, retrieved and classified exactly as a live analysis would do it.
+
+Usage:
+    python eval/runner.py                       # full set
+    python eval/runner.py --ticker AAPL         # one company
+    python eval/runner.py --limit 5             # first N claims
+    python eval/runner.py --json results.json   # machine-readable output
 """
 
+from __future__ import annotations
+
+import argparse
 import json
+import os
 import sys
 import time
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
-from enum import Enum
+from typing import Any, Optional
 
-class Verdict(Enum):
-    APPROVE = "approve"
-    REJECT = "reject"
-    UNCERTAIN = "uncertain"
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CLAIMS = ROOT / "eval" / "claims.json"
+
+VERDICTS = ("supported", "contradicted", "insufficient_evidence")
+
+
+def setup_django() -> None:
+    """Put backend/ on the path and boot Django so the ORM and RAG code import."""
+    sys.path.insert(0, str(ROOT / "backend"))
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    import django
+
+    django.setup()
+
 
 @dataclass
 class RetrievalMetric:
+    """Ranking quality for one claim's retrieval step.
+
+    Relevance is graded by cosine similarity from pgvector. There is no human
+    relevance judgement per chunk, so a chunk counts as relevant when it clears
+    `threshold` — this measures whether retrieval surfaced anything usable and
+    how high up, not human-judged topical relevance.
+    """
+
     claim_id: str
-    claim_text: str
-    retrieved_evidence: List[str]
-    relevance_scores: List[float]
+    similarities: list[float] = field(default_factory=list)
+    threshold: float = 0.5
     top_k: int = 5
 
+    def hit(self) -> bool:
+        return any(s >= self.threshold for s in self.similarities[: self.top_k])
+
     def mrr(self) -> float:
-        """Mean Reciprocal Rank of relevant documents."""
-        if not self.relevance_scores:
-            return 0.0
-        for i, score in enumerate(self.relevance_scores[:self.top_k]):
-            if score > 0.5:
+        for i, s in enumerate(self.similarities[: self.top_k]):
+            if s >= self.threshold:
                 return 1.0 / (i + 1)
         return 0.0
 
     def ndcg(self) -> float:
-        """Normalized Discounted Cumulative Gain."""
-        if not self.relevance_scores:
+        import math
+
+        rels = [max(0.0, s) for s in self.similarities[: self.top_k]]
+        if not rels:
             return 0.0
-        dcg = sum(score / (i + 2) for i, score in enumerate(self.relevance_scores[:self.top_k]))
-        idcg = sum(1.0 / (i + 2) for i in range(min(self.top_k, len(self.relevance_scores))))
+        dcg = sum(r / math.log2(i + 2) for i, r in enumerate(rels))
+        ideal = sorted(rels, reverse=True)
+        idcg = sum(r / math.log2(i + 2) for i, r in enumerate(ideal))
         return dcg / idcg if idcg > 0 else 0.0
 
+
 @dataclass
-class VerificationResult:
+class ClaimResult:
     thesis_id: str
     claim_id: str
+    ticker: str
     claim_text: str
-    expected_verdict: str
-    predicted_verdict: str
-    confidence: float
-    retrieval_metrics: Optional[RetrievalMetric]
-    evidence_snippet: Optional[str]
-    is_correct: bool
+    expected: str
+    predicted: str
+    correct: bool
+    quote: str
+    quote_verified: bool
+    explanation: str
+    retrieval: Optional[RetrievalMetric]
+    elapsed_s: float
+    error: Optional[str] = None
 
-class EvaluationRunner:
-    def __init__(self, claims_file: str = "eval/claims.json"):
-        self.claims_file = Path(claims_file)
-        self.results: List[VerificationResult] = []
-        self.retrieval_metrics: List[RetrievalMetric] = []
 
-    def load_claims(self) -> Dict[str, Any]:
-        """Load thesis-claim pairs from JSON."""
+class Evaluator:
+    def __init__(self, claims_file: Path, k: int = 5):
+        self.claims_file = claims_file
+        self.k = k
+        self.results: list[ClaimResult] = []
+
+    def load(self) -> list[dict[str, Any]]:
         try:
-            # utf-8-sig so a byte-order mark left by an editor does not break
-            # the parse; it is a no-op for plain UTF-8.
-            with open(self.claims_file, 'r', encoding='utf-8-sig') as f:
-                return json.load(f)
+            # utf-8-sig so a stray byte-order mark does not break the parse.
+            with open(self.claims_file, encoding="utf-8-sig") as f:
+                data = json.load(f)
         except FileNotFoundError:
-            print(f"Error: {self.claims_file} not found", file=sys.stderr)
-            sys.exit(1)
+            sys.exit(f"error: {self.claims_file} not found")
         except json.JSONDecodeError as e:
-            print(f"Error parsing {self.claims_file}: {e}", file=sys.stderr)
-            sys.exit(1)
+            sys.exit(f"error: cannot parse {self.claims_file}: {e}")
 
-    def simulate_retrieval(self, claim_text: str) -> tuple[List[str], List[float]]:
-        """
-        Simulate document retrieval for a claim.
-        Returns (documents, relevance_scores).
-        """
-        mock_evidence = [
-            "Services revenue increased 15% YoY",
-            "Cloud margins exceed 70%",
-            "Operating expenses well controlled",
-            "Free cash flow remains strong",
-            "Market share gains in key segments"
-        ]
-        scores = [0.95, 0.87, 0.62, 0.58, 0.41]
-        return mock_evidence, scores
+        theses = data.get("thesis_claims", [])
+        if not theses:
+            sys.exit("error: claims.json has no thesis_claims")
+        return theses
 
-    def predict_verdict(self, claim_text: str, evidence_snippet: str) -> tuple[str, float]:
-        """
-        Predict verdict (approve/reject/uncertain) based on evidence.
-        Returns (verdict, confidence).
-        """
-        approval_keywords = ["grew", "increased", "strong", "exceeded", "improved"]
-        rejection_keywords = ["declined", "weak", "decreased", "failed", "risk"]
+    def evaluate_claim(self, thesis: dict, claim: dict, company) -> ClaimResult:
+        from apps.ingestion.search import search_chunks_real
+        from apps.rag.classification import classify_claim
 
-        approval_score = sum(1 for kw in approval_keywords if kw.lower() in evidence_snippet.lower())
-        rejection_score = sum(1 for kw in rejection_keywords if kw.lower() in evidence_snippet.lower())
+        started = time.time()
+        text = claim["text"]
 
-        if approval_score > rejection_score:
-            return Verdict.APPROVE.value, min(0.95, 0.6 + approval_score * 0.1)
-        elif rejection_score > approval_score:
-            return Verdict.REJECT.value, min(0.95, 0.6 + rejection_score * 0.1)
-        else:
-            return Verdict.UNCERTAIN.value, 0.5
-
-    def evaluate_with_db_fallback(self) -> List[VerificationResult]:
-        """
-        Run evaluation with graceful fallback if database is unavailable.
-        """
         try:
-            return self._run_evaluation()
-        except ConnectionError as e:
-            print(f"⚠ Database connection error: {e}", file=sys.stderr)
-            print("  Falling back to mock evaluation...", file=sys.stderr)
-            return self._run_evaluation_mock()
-        except TimeoutError as e:
-            print(f"⚠ Database timeout: {e}", file=sys.stderr)
-            print("  Falling back to mock evaluation...", file=sys.stderr)
-            return self._run_evaluation_mock()
+            chunks = search_chunks_real(str(company.id), text, k=self.k)
+            # pgvector annotates cosine *distance*; similarity is its complement.
+            # The stub fallback returns chunks with neither, hence the getattr.
+            sims = []
+            for c in chunks:
+                dist = getattr(c, "distance", None)
+                sims.append(
+                    1.0 - float(dist) if dist is not None else float(getattr(c, "similarity", 0.0) or 0.0)
+                )
+            retrieval = RetrievalMetric(
+                claim_id=claim["claim_id"], similarities=sims, top_k=self.k
+            )
+
+            result = classify_claim(
+                claim_text=text,
+                company_id=str(company.id),
+                company_ticker=company.ticker,
+                k=self.k,
+            )
+
+            predicted = result.status
+            quote = result.quote or ""
+            # classify_claim downgrades to insufficient_evidence when a quote
+            # cannot be found verbatim, so a surviving quote is a verified one.
+            verified = bool(quote) and predicted != "insufficient_evidence"
+
+            return ClaimResult(
+                thesis_id=thesis["thesis_id"],
+                claim_id=claim["claim_id"],
+                ticker=thesis.get("ticker", company.ticker),
+                claim_text=text,
+                expected=claim["expected_verdict"],
+                predicted=predicted,
+                correct=predicted == claim["expected_verdict"],
+                quote=quote,
+                quote_verified=verified,
+                explanation=result.explanation or "",
+                retrieval=retrieval,
+                elapsed_s=time.time() - started,
+            )
+
         except Exception as e:
-            print(f"⚠ Unexpected error: {e}", file=sys.stderr)
-            print("  Falling back to mock evaluation...", file=sys.stderr)
-            return self._run_evaluation_mock()
+            return ClaimResult(
+                thesis_id=thesis["thesis_id"],
+                claim_id=claim["claim_id"],
+                ticker=thesis.get("ticker", ""),
+                claim_text=text,
+                expected=claim["expected_verdict"],
+                predicted="error",
+                correct=False,
+                quote="",
+                quote_verified=False,
+                explanation="",
+                retrieval=None,
+                elapsed_s=time.time() - started,
+                error=str(e),
+            )
 
-    def _run_evaluation(self) -> List[VerificationResult]:
-        """Main evaluation logic (would connect to DB in production)."""
-        claims_data = self.load_claims()
-        results = []
+    def run(self, ticker: Optional[str] = None, limit: Optional[int] = None) -> None:
+        from apps.ledger.models import Company
 
-        for thesis in claims_data["thesis_claims"]:
-            thesis_id = thesis["thesis_id"]
+        theses = self.load()
+        if ticker:
+            theses = [t for t in theses if t.get("ticker", "").upper() == ticker.upper()]
+            if not theses:
+                sys.exit(f"error: no theses for ticker {ticker}")
+
+        seen = 0
+        for thesis in theses:
+            tk = thesis.get("ticker")
+            company = Company.objects.filter(ticker=tk).first()
+            if not company:
+                print(f"  skip {thesis['thesis_id']}: no Company row for {tk}")
+                continue
+
+            print(f"\n{thesis['thesis_id']} ({tk})")
             for claim in thesis["claims"]:
-                claim_id = claim["claim_id"]
-                claim_text = claim["text"]
-                expected_verdict = claim["expected_verdict"]
+                if limit is not None and seen >= limit:
+                    return
+                res = self.evaluate_claim(thesis, claim, company)
+                self.results.append(res)
+                seen += 1
 
-                retrieved_docs, relevance_scores = self.simulate_retrieval(claim_text)
-                evidence_snippet = retrieved_docs[0] if retrieved_docs else "No evidence retrieved"
-                predicted_verdict, confidence = self.predict_verdict(claim_text, evidence_snippet)
+                mark = "✓" if res.correct else "✗"
+                if res.error:
+                    print(f"  ! {res.claim_id}: {res.error[:70]}")
+                else:
+                    print(
+                        f"  {mark} {res.claim_id}: expected {res.expected}, "
+                        f"got {res.predicted} ({res.elapsed_s:.1f}s)"
+                    )
 
-                retrieval_metric = RetrievalMetric(
-                    claim_id=claim_id,
-                    claim_text=claim_text,
-                    retrieved_evidence=retrieved_docs,
-                    relevance_scores=relevance_scores
-                )
+    # --- metrics -----------------------------------------------------------
 
-                result = VerificationResult(
-                    thesis_id=thesis_id,
-                    claim_id=claim_id,
-                    claim_text=claim_text,
-                    expected_verdict=expected_verdict,
-                    predicted_verdict=predicted_verdict,
-                    confidence=confidence,
-                    retrieval_metrics=retrieval_metric,
-                    evidence_snippet=evidence_snippet,
-                    is_correct=(predicted_verdict == expected_verdict)
-                )
-                results.append(result)
-                self.retrieval_metrics.append(retrieval_metric)
+    def summary(self) -> dict[str, Any]:
+        scored = [r for r in self.results if not r.error]
+        errors = [r for r in self.results if r.error]
+        total = len(scored)
 
-        return results
+        if not total:
+            return {"total": 0, "errors": len(errors)}
 
-    def _run_evaluation_mock(self) -> List[VerificationResult]:
-        """Fallback mock evaluation without database."""
-        claims_data = self.load_claims()
-        results = []
+        correct = sum(1 for r in scored if r.correct)
 
-        for thesis in claims_data["thesis_claims"]:
-            thesis_id = thesis["thesis_id"]
-            for claim in thesis["claims"]:
-                claim_id = claim["claim_id"]
-                claim_text = claim["text"]
-                expected_verdict = claim["expected_verdict"]
+        per_class: dict[str, dict[str, int]] = {
+            v: {"tp": 0, "fp": 0, "fn": 0} for v in VERDICTS
+        }
+        for r in scored:
+            if r.predicted == r.expected:
+                per_class.setdefault(r.expected, {"tp": 0, "fp": 0, "fn": 0})["tp"] += 1
+            else:
+                per_class.setdefault(r.predicted, {"tp": 0, "fp": 0, "fn": 0})["fp"] += 1
+                per_class.setdefault(r.expected, {"tp": 0, "fp": 0, "fn": 0})["fn"] += 1
 
-                result = VerificationResult(
-                    thesis_id=thesis_id,
-                    claim_id=claim_id,
-                    claim_text=claim_text,
-                    expected_verdict=expected_verdict,
-                    predicted_verdict=expected_verdict,
-                    confidence=0.5,
-                    retrieval_metrics=None,
-                    evidence_snippet="Mock evaluation (DB unavailable)",
-                    is_correct=True
-                )
-                results.append(result)
+        for v, c in per_class.items():
+            p = c["tp"] / (c["tp"] + c["fp"]) if c["tp"] + c["fp"] else 0.0
+            rec = c["tp"] / (c["tp"] + c["fn"]) if c["tp"] + c["fn"] else 0.0
+            c["precision"] = round(p, 3)
+            c["recall"] = round(rec, 3)
+            c["f1"] = round(2 * p * rec / (p + rec), 3) if p + rec else 0.0
 
-        return results
-
-    def compute_accuracy(self, results: List[VerificationResult]) -> float:
-        """Calculate overall accuracy."""
-        if not results:
-            return 0.0
-        correct = sum(1 for r in results if r.is_correct)
-        return correct / len(results)
-
-    def compute_retrieval_metrics(self) -> Dict[str, float]:
-        """Compute aggregate retrieval metrics."""
-        if not self.retrieval_metrics:
-            return {"mrr": 0.0, "ndcg": 0.0}
-
-        mrrs = [m.mrr() for m in self.retrieval_metrics]
-        ndcgs = [m.ndcg() for m in self.retrieval_metrics]
+        rets = [r.retrieval for r in scored if r.retrieval and r.retrieval.similarities]
+        cited = [r for r in scored if r.predicted != "insufficient_evidence"]
 
         return {
-            "mrr": sum(mrrs) / len(mrrs) if mrrs else 0.0,
-            "ndcg": sum(ndcgs) / len(ndcgs) if ndcgs else 0.0,
-            "samples": len(self.retrieval_metrics)
+            "total": total,
+            "errors": len(errors),
+            "accuracy": round(correct / total, 3),
+            "per_class": per_class,
+            "retrieval": {
+                "hit_rate": round(sum(m.hit() for m in rets) / len(rets), 3) if rets else 0.0,
+                "mrr": round(sum(m.mrr() for m in rets) / len(rets), 3) if rets else 0.0,
+                "ndcg": round(sum(m.ndcg() for m in rets) / len(rets), 3) if rets else 0.0,
+                "claims_with_retrieval": len(rets),
+            },
+            "citation": {
+                "verdicts_with_citation": len(cited),
+                "quote_verified_rate": (
+                    round(sum(1 for r in cited if r.quote_verified) / len(cited), 3)
+                    if cited
+                    else 0.0
+                ),
+            },
+            "latency": {
+                "mean_s": round(sum(r.elapsed_s for r in scored) / total, 2),
+                "max_s": round(max(r.elapsed_s for r in scored), 2),
+            },
         }
 
-    def print_results(self, results: List[VerificationResult]) -> None:
-        """Print evaluation results."""
-        print("\n" + "="*80)
-        print("ThesisLedger Evaluation Results")
-        print("="*80)
+    def report(self, summary: dict[str, Any]) -> None:
+        print("\n" + "=" * 68)
+        print("EVALUATION SUMMARY")
+        print("=" * 68)
 
-        accuracy = self.compute_accuracy(results)
-        retrieval = self.compute_retrieval_metrics()
+        if not summary.get("total"):
+            print("No claims scored.")
+            if summary.get("errors"):
+                print(f"{summary['errors']} claim(s) errored.")
+            return
 
-        print(f"\nAccuracy: {accuracy:.2%} ({sum(1 for r in results if r.is_correct)}/{len(results)})")
-        print(f"Retrieval MRR: {retrieval['mrr']:.3f}")
-        print(f"Retrieval NDCG: {retrieval['ndcg']:.3f}")
+        print(f"Claims scored     : {summary['total']}  (errors: {summary['errors']})")
+        print(f"Accuracy          : {summary['accuracy']:.1%}")
 
-        print("\nPer-Claim Results (first 5):")
-        print("-" * 80)
-        for result in results[:5]:
-            status = "✓" if result.is_correct else "✗"
-            print(f"{status} {result.claim_id}")
-            print(f"  Expected: {result.expected_verdict}, Got: {result.predicted_verdict} (conf: {result.confidence:.2f})")
-            print(f"  Evidence: {result.evidence_snippet}")
-            if result.retrieval_metrics:
-                print(f"  Metrics: MRR={result.retrieval_metrics.mrr():.3f}, NDCG={result.retrieval_metrics.ndcg():.3f}")
-            print()
+        r = summary["retrieval"]
+        print(f"Retrieval hit@{self.k}   : {r['hit_rate']:.1%}")
+        print(f"Retrieval MRR     : {r['mrr']:.3f}")
+        print(f"Retrieval NDCG    : {r['ndcg']:.3f}")
 
-        print("="*80)
+        c = summary["citation"]
+        print(f"Quote verified    : {c['quote_verified_rate']:.1%} of {c['verdicts_with_citation']} cited verdicts")
 
-    def run(self) -> int:
-        """Execute full evaluation pipeline."""
-        print("🚀 Starting ThesisLedger Evaluation")
-        print(f"   Claims file: {self.claims_file}")
+        lat = summary["latency"]
+        print(f"Latency per claim : {lat['mean_s']:.1f}s mean, {lat['max_s']:.1f}s max")
 
-        start_time = time.time()
-        results = self.evaluate_with_db_fallback()
-        elapsed = time.time() - start_time
+        print("\nPer-verdict:")
+        print(f"  {'verdict':<24} {'P':>6} {'R':>6} {'F1':>6}")
+        for v in VERDICTS:
+            m = summary["per_class"].get(v, {})
+            print(
+                f"  {v:<24} {m.get('precision', 0):>6.2f} "
+                f"{m.get('recall', 0):>6.2f} {m.get('f1', 0):>6.2f}"
+            )
 
-        self.print_results(results)
-        print(f"\nEvaluation completed in {elapsed:.2f}s\n")
+        wrong = [x for x in self.results if not x.correct and not x.error]
+        if wrong:
+            print(f"\nMisclassified ({len(wrong)}):")
+            for x in wrong[:10]:
+                print(f"  {x.claim_id}: {x.expected} → {x.predicted}")
 
-        return 0 if self.compute_accuracy(results) > 0.5 else 1
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--claims", type=Path, default=DEFAULT_CLAIMS)
+    parser.add_argument("--ticker", help="Evaluate a single company")
+    parser.add_argument("--limit", type=int, help="Stop after N claims")
+    parser.add_argument("-k", type=int, default=5, help="Chunks retrieved per claim")
+    parser.add_argument("--json", type=Path, help="Write results as JSON")
+    args = parser.parse_args()
+
+    setup_django()
+
+    ev = Evaluator(args.claims, k=args.k)
+    started = time.time()
+    ev.run(ticker=args.ticker, limit=args.limit)
+    summary = ev.summary()
+    ev.report(summary)
+    print(f"\nCompleted in {time.time() - started:.1f}s")
+
+    if args.json:
+        payload = {
+            "summary": summary,
+            "results": [
+                {**asdict(r), "retrieval": asdict(r.retrieval) if r.retrieval else None}
+                for r in ev.results
+            ],
+        }
+        args.json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(f"Wrote {args.json}")
+
+    return 0 if summary.get("total") else 1
+
 
 if __name__ == "__main__":
-    runner = EvaluationRunner()
-    sys.exit(runner.run())
+    sys.exit(main())
