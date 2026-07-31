@@ -8,6 +8,7 @@ import hashlib
 import random
 from typing import TYPE_CHECKING
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.ledger.models import AnalysisJob, Claim, Evidence, Thesis
@@ -167,3 +168,27 @@ def run_real_analysis(job: AnalysisJob) -> None:
     except Exception as e:
         fail_job(job, str(e))
         raise
+
+
+def write_claims(thesis: Thesis) -> list[Claim]:
+    """Generate claims for a thesis and replace any existing ones.
+
+    Shared by the Celery task and the inline fallback, so both paths leave the
+    thesis in the same state.
+    """
+    from apps.ledger.claim_generation import generate_claims
+
+    texts = generate_claims(thesis)[: Claim.MAX_PER_THESIS]
+
+    with transaction.atomic():
+        thesis.claims.all().delete()
+        claims = Claim.objects.bulk_create(
+            [
+                Claim(thesis=thesis, ordinal=ordinal, text=text, origin=Claim.Origin.LLM)
+                for ordinal, text in enumerate(texts)
+            ]
+        )
+        thesis.status = Thesis.Status.CLAIMS_GENERATED
+        thesis.save(update_fields=["status", "updated_at"])
+
+    return claims

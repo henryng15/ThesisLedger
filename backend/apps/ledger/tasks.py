@@ -64,3 +64,24 @@ def run_analysis_task(self, job_id: str) -> dict:
             raise self.retry(exc=exc)
 
         return {"job_id": job_id, "status": "failed", "error": str(exc)}
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=15, ignore_result=True)
+def generate_claims_task(self, thesis_id: str) -> dict:
+    """Extract claims from a thesis.
+
+    Runs in a worker because the LLM call takes minutes on CPU inference —
+    far longer than any sane HTTP timeout.
+    """
+    from apps.ledger.models import Thesis
+    from apps.ledger.services import write_claims
+
+    try:
+        thesis = Thesis.objects.select_related("company").get(id=thesis_id)
+    except Thesis.DoesNotExist:
+        logger.error("Thesis %s not found", thesis_id)
+        return {"thesis_id": thesis_id, "status": "not_found"}
+
+    claims = write_claims(thesis)
+    logger.info("Generated %d claims for thesis %s", len(claims), thesis_id)
+    return {"thesis_id": thesis_id, "claims": len(claims)}

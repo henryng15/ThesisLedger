@@ -39,24 +39,32 @@ export default function ClaimReviewPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
+    // Claim extraction runs in a worker, so the thesis arrives as `draft` with
+    // no claims and fills in a minute or two later. Poll until it does.
     async function loadThesis() {
       try {
         const loaded = await api.getThesis(thesisId);
         if (cancelled) return;
         setThesis(loaded);
         setSelectedIds(new Set(loaded.claims.filter((c) => c.is_approved).map((c) => c.id)));
+
+        if (loaded.status === "draft" && loaded.claims.length === 0) {
+          timer = setTimeout(loadThesis, 3000);
+          return;
+        }
       } catch (err) {
         if (cancelled) return;
         setLoadError(errorMessage(err));
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+      if (!cancelled) setLoading(false);
     }
 
     loadThesis();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [thesisId, reloadKey]);
 

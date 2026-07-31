@@ -214,17 +214,20 @@ def test_thesis_detail_unknown_id_is_404(client, company):
 def test_generate_claims_persists_at_most_five(client, thesis):
     response = post_json(client, reverse("claims-generate", args=[thesis.id]))
 
-    assert response.status_code == 201
-    body = response.json()
-    assert set(body) == {"thesis_id", "status", "claims"}
-    assert body["status"] == "claims_generated"
-    assert 0 < len(body["claims"]) <= Claim.MAX_PER_THESIS
-    assert all(set(claim) == CLAIM_FIELDS for claim in body["claims"])
+    # 202: extraction is queued, the client polls the thesis for the result.
+    assert response.status_code == 202
+    assert set(response.json()) == {"thesis_id", "status", "claims"}
 
     thesis.refresh_from_db()
     assert thesis.status == Thesis.Status.CLAIMS_GENERATED
-    assert thesis.claims.count() == len(body["claims"])
-    assert list(thesis.claims.values_list("ordinal", flat=True)) == list(range(len(body["claims"])))
+    assert 0 < thesis.claims.count() <= Claim.MAX_PER_THESIS
+    assert list(thesis.claims.values_list("ordinal", flat=True)) == list(
+        range(thesis.claims.count())
+    )
+
+    polled = client.get(reverse("thesis-detail", args=[thesis.id])).json()
+    assert len(polled["claims"]) == thesis.claims.count()
+    assert all(set(claim) == CLAIM_FIELDS for claim in polled["claims"])
 
 
 @pytest.mark.django_db
@@ -238,12 +241,14 @@ def test_generate_claims_twice_conflicts(client, thesis):
 
 @pytest.mark.django_db
 def test_generate_claims_force_replaces(client, thesis):
-    first = post_json(client, reverse("claims-generate", args=[thesis.id])).json()
+    post_json(client, reverse("claims-generate", args=[thesis.id]))
+    old_ids = set(thesis.claims.values_list("id", flat=True))
+    assert old_ids
+
     second = post_json(client, reverse("claims-generate", args=[thesis.id]), {"force": True})
 
-    assert second.status_code == 201
-    new_ids = {claim["id"] for claim in second.json()["claims"]}
-    old_ids = {claim["id"] for claim in first["claims"]}
+    assert second.status_code == 202
+    new_ids = set(thesis.claims.values_list("id", flat=True))
     assert new_ids.isdisjoint(old_ids)
     assert thesis.claims.count() == len(new_ids)
 

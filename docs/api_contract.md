@@ -88,23 +88,28 @@ Same shape as above, with `claims` populated once generated.
 
 ## 5. `POST /api/theses/{id}/claims:generate`
 
-Extract up to 5 claims. Day 2–3: fixed mock list. Day 7: LangGraph extraction node.
+Extract up to 5 claims. **Asynchronous** — extraction is an LLM call that takes
+minutes on CPU inference, far longer than an HTTP request can wait, so the work
+is queued and the response returns immediately.
 
-Request body: none (or `{"force": true}` to regenerate and replace existing claims — the old claims are deleted, so their ids change).
+Request body: none (or `{"force": true}` to regenerate and replace existing
+claims — the old ones are deleted, so their ids change).
 
-Response `201`:
+Response `202`:
 
 ```json
-{
-  "thesis_id": "…",
-  "status": "claims_generated",
-  "claims": [
-    { "id": "…", "ordinal": 0, "text": "Services revenue grows faster than hardware revenue.", "origin": "llm", "is_approved": false }
-  ]
-}
+{ "thesis_id": "…", "status": "draft", "claims": [] }
 ```
 
-Errors: `409 conflict` if claims exist and `force` is not set; `502 llm_error` if extraction fails.
+`claims` is empty and `status` is still `draft` in the normal case: the worker
+has the job but has not finished. **Poll `GET /api/theses/{id}/`** until
+`status` becomes `claims_generated`, then read `claims` from that response.
+
+If the broker is unreachable the API falls back to extracting inline, in which
+case the response already carries `status: "claims_generated"` and the claims.
+Either way, polling the thesis is the correct client behaviour.
+
+Errors: `409 conflict` if claims exist and `force` is not set.
 
 ## 6. `PATCH /api/claims/{id}/`
 

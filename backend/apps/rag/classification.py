@@ -212,21 +212,32 @@ def classify_claim(
         })
         result = _parse_classification(raw.content)
 
-        # Verify quote exists in chunks (prevent hallucination)
-        if result.status != "insufficient_evidence" and result.quote:
-            quote_found = False
-            for chunk in chunks:
-                if result.quote in chunk.text:
-                    result.chunk_id = str(chunk.id)
-                    quote_found = True
-                    break
+        # A verdict that is not insufficient_evidence must carry a quote found
+        # verbatim in a retrieved chunk. Two ways that fails — the model
+        # returns no quote at all, or returns one that is not in the source —
+        # and both must downgrade. Asserting support we cannot cite is exactly
+        # the failure this product exists to avoid.
+        if result.status != "insufficient_evidence":
+            matched_chunk = None
+            if result.quote:
+                matched_chunk = next(
+                    (c for c in chunks if result.quote in c.text), None
+                )
 
-            if not quote_found:
-                logger.warning("Quote not found in chunks, downgrading to insufficient_evidence")
+            if matched_chunk is None:
+                reason = "no quote returned" if not result.quote else "quote not found in sources"
+                logger.warning(
+                    "Downgrading %s to insufficient_evidence: %s", result.status, reason
+                )
+                result.explanation = (
+                    f"Could not verify a citation ({reason}). "
+                    f"Original assessment: {result.explanation}"
+                )
                 result.status = "insufficient_evidence"
                 result.quote = ""
                 result.chunk_id = None
-                result.explanation = f"Classification attempted but quote could not be verified. Original assessment: {result.explanation}"
+            else:
+                result.chunk_id = str(matched_chunk.id)
 
         logger.info(f"Classified claim as {result.status}: {claim_text[:50]}...")
         return result

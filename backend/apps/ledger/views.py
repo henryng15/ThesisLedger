@@ -14,7 +14,6 @@ from rest_framework.decorators import api_view
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.ledger.claim_generation import generate_claims
 from apps.ledger.models import AnalysisJob, Claim, Company, Thesis
 from apps.ledger.uploads.handlers import save_uploaded_file
 from apps.ledger.serializers import (
@@ -26,7 +25,7 @@ from apps.ledger.serializers import (
     ThesisSerializer,
 )
 from apps.ledger.cache import get_cached_job_id, set_cached_job_id
-from apps.ledger.services import compute_cache_key, create_analysis_job
+from apps.ledger.services import compute_cache_key, create_analysis_job, write_claims
 
 logger = logging.getLogger(__name__)
 
@@ -113,17 +112,18 @@ def claims_generate(request: Request, thesis_id: str) -> Response:
             http.HTTP_409_CONFLICT,
         )
 
-    texts = generate_claims(thesis)[: Claim.MAX_PER_THESIS]
-    with transaction.atomic():
-        thesis.claims.all().delete()
-        claims = Claim.objects.bulk_create(
-            [
-                Claim(thesis=thesis, ordinal=ordinal, text=text, origin=Claim.Origin.LLM)
-                for ordinal, text in enumerate(texts)
-            ]
-        )
-        thesis.status = Thesis.Status.CLAIMS_GENERATED
-        thesis.save(update_fields=["status", "updated_at"])
+    # Extraction is an LLM call: minutes on CPU inference, well past any HTTP
+    # timeout. Hand it to a worker and let the client poll the thesis, the same
+    # shape as the analyze endpoint.
+    try:
+        from apps.ledger.tasks import generate_claims_task
+
+        generate_claims_task.apply_async(args=[str(thesis.id)], retry=False)
+        claims = []
+    except (ImportError, KombuOperationalError, OSError) as exc:
+        logger.warning("Celery enqueue failed (%s); generating claims inline", exc)
+        claims = write_claims(thesis)
+        thesis.refresh_from_db()
 
     return Response(
         {
@@ -131,7 +131,7 @@ def claims_generate(request: Request, thesis_id: str) -> Response:
             "status": thesis.status,
             "claims": ClaimSerializer(claims, many=True).data,
         },
-        status=http.HTTP_201_CREATED,
+        status=http.HTTP_202_ACCEPTED,
     )
 
 
