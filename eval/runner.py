@@ -192,10 +192,10 @@ class Evaluator:
             tk = thesis.get("ticker")
             company = Company.objects.filter(ticker=tk).first()
             if not company:
-                print(f"  skip {thesis['thesis_id']}: no Company row for {tk}")
+                print(f"  skip {thesis['thesis_id']}: no Company row for {tk}", flush=True)
                 continue
 
-            print(f"\n{thesis['thesis_id']} ({tk})")
+            print(f"\n{thesis['thesis_id']} ({tk})", flush=True)
             for claim in thesis["claims"]:
                 if limit is not None and seen >= limit:
                     return
@@ -205,11 +205,12 @@ class Evaluator:
 
                 mark = "✓" if res.correct else "✗"
                 if res.error:
-                    print(f"  ! {res.claim_id}: {res.error[:70]}")
+                    print(f"  ! {res.claim_id}: {res.error[:70]}", flush=True)
                 else:
                     print(
                         f"  {mark} {res.claim_id}: expected {res.expected}, "
-                        f"got {res.predicted} ({res.elapsed_s:.1f}s)"
+                        f"got {res.predicted} ({res.elapsed_s:.1f}s)",
+                        flush=True,
                     )
 
     # --- metrics -----------------------------------------------------------

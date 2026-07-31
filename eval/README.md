@@ -1,215 +1,82 @@
-# RAG Evaluation Pipeline
+# RAG Evaluation
 
-Evaluates the Retrieval-Augmented Generation pipeline by measuring how well the vector search retrieves relevant chunks from SEC filings for investment thesis claims.
+Scores the real pipeline — pgvector retrieval plus LLM classification — against
+hand-labelled verdicts. Nothing is simulated: every claim is embedded, retrieved
+and classified exactly as a live analysis would do it.
 
 ## Files
 
-- **`claims.json`** — 20 realistic thesis-to-claim evaluation pairs covering major tickers (AAPL, MSFT, JPM, UNH, TSLA, etc.)
-- **`runner.py`** — Evaluation script that measures retrieval hit-rate and classification accuracy
-- **`README.md`** — This file
+- **`claims.json`** — 5 theses / 15 claims, one thesis per company in the corpus
+- **`runner.py`** — the scorer
+- **`README.md`** — this file
 
-## Running Evaluation
+## The label set
 
-### Prerequisites
+15 claims, balanced across the three verdicts the system can emit:
 
-1. Django environment set up with migrations applied:
-   ```bash
-   cd backend
-   python manage.py migrate
-   ```
+| Verdict | Count | What it looks like |
+|---|---|---|
+| `supported` | 5 | Something the filing plainly states — "NVIDIA identifies Data Center as a reportable revenue category" |
+| `contradicted` | 5 | Something the filing plainly refutes — "Visa issues credit cards directly to consumers" |
+| `insufficient_evidence` | 5 | Something a 10-K would not address — forward-looking guidance, competitor internals, undisclosed geographic splits |
 
-2. Companies and filings in the database (seeded or manually added):
-   ```bash
-   python manage.py seed_companies
-   ```
+The balance matters. An earlier version of this set labelled every claim
+`approve`, which meant a model answering "approve" unconditionally scored 100%.
+Negative and unanswerable cases are what make the accuracy number mean anything.
 
-3. Chunks with embeddings indexed in pgvector:
-   ```bash
-   # If using Ollama, ensure it's running
-   docker compose --profile with-ollama up -d ollama
-   ```
-
-### Run Full Evaluation
+## Prerequisites
 
 ```bash
-cd eval
-python runner.py
+# 1. Datastores and Ollama
+docker compose --profile with-ollama up -d
+docker exec thesisledger-ollama ollama pull nomic-embed-text
+docker exec thesisledger-ollama ollama pull llama3.2:3b
+
+# 2. Schema and companies
+cd backend
+python manage.py migrate
+python manage.py seed_companies
+
+# 3. Corpus — download, ingest, embed
+SEC_USER_AGENT="ThesisLedger/0.1 (you@example.com)" python ../scripts/download_filings.py
+python manage.py ingest_filings --data-dir ../data/raw
+python -c "import django; django.setup(); from apps.ingestion.embeddings import embed_all_chunks; embed_all_chunks()"
 ```
 
-Or with custom options:
+Embedding is the slow step: roughly **35 chunks/min** on CPU, and it does not
+parallelise — Ollama saturates on a single request. The 5-company corpus is 1330
+chunks, so budget about 40 minutes.
+
+## Running
 
 ```bash
-python runner.py --eval-data claims.json --top-k 5
+python eval/runner.py                      # full set
+python eval/runner.py --ticker AAPL        # one company
+python eval/runner.py --limit 3            # first N claims
+python eval/runner.py -k 3                 # retrieve 3 chunks instead of 5
+python eval/runner.py --json results.json  # machine-readable output
 ```
 
-### Options
+## What is measured
 
-- `--eval-data PATH` — Path to evaluation claims JSON (default: `eval/claims.json`)
-- `--top-k K` — Number of chunks to retrieve per claim (default: 5)
+**Classification accuracy** — predicted verdict against the label, plus
+precision/recall/F1 per verdict so you can see *which* verdict the model gets
+wrong. Confusing `contradicted` for `insufficient_evidence` is a very different
+failure from the reverse.
 
-## What Gets Measured
+**Retrieval quality** — hit rate, MRR and NDCG over the top-k chunks. Relevance
+is graded by cosine similarity from pgvector against a 0.5 threshold. There is no
+per-chunk human judgement, so this measures whether retrieval surfaced anything
+usable and how highly it ranked — not human-judged topical relevance.
 
-### Retrieval Hit-Rate
+**Quote verification rate** — of the verdicts that are not
+`insufficient_evidence`, the share carrying a quote found verbatim in its source
+chunk. `classify_claim` downgrades a verdict when the quote cannot be verified,
+so this should be 100%; anything less means the downgrade path has a hole.
 
-Percentage of claims for which the vector search returned relevant chunks.
+**Latency** — mean and max seconds per claim. On CPU inference this dominates,
+and it decides whether a live demo is viable.
 
-- **Hit** = chunk with similarity score > 0.5
-- Metric: `(claims_with_hits / total_claims) × 100`
+## Results
 
-### Classification Accuracy
-
-- **Coverage** — % of tickers with indexed chunks available for search
-- **Average Similarity** — Mean of max similarity scores across all claims
-- **Claims Above Threshold** — % of claims where best result scored > 0.5
-
-### Per-Ticker Metrics
-
-- Chunk count per ticker
-- Filing count per ticker
-- Coverage status (✓ = chunks available, ✗ = no chunks)
-
-## Output Format
-
-```
-════════════════════════════════════════════════════════════════════════════════
-ThesisLedger RAG Evaluation Results
-════════════════════════════════════════════════════════════════════════════════
-
-📊 Summary
-────────────────────────────────────────────────────────────────────────────────
-Total claims evaluated:     20
-Successful retrievals:      18 (90.0%)
-Failed retrievals:          2 (10.0%)
-
-🎯 Retrieval Quality
-────────────────────────────────────────────────────────────────────────────────
-Average max similarity:     0.756
-Average hit-rate (>0.5):    85.0%
-Claims above threshold:     17/20 (85%)
-Top-k for search:           5
-
-📈 Coverage by Ticker
-────────────────────────────────────────────────────────────────────────────────
-✓ AAPL    1234 chunks  5 filings
-✓ MSFT     892 chunks  4 filings
-✓ JPM      456 chunks  2 filings
-✗ V          0 chunks  0 filings
-
-📋 Detailed Results (Top Findings)
-────────────────────────────────────────────────────────────────────────────────
-
-1. AAPL - Services segment revenue growth exceeds Products segment growth...
-   ✓ Retrieved: similarity=0.812
-     Section: Item 1. Business
-     Filing: 10-Q (2024-01-31)
-
-2. MSFT - Capital expenditures for cloud and infrastructure have increased...
-   ✓ Retrieved: similarity=0.745
-     Section: Item 7. Management's Discussion and Analysis
-     Filing: 10-K (2023-12-31)
-```
-
-## Evaluation Pairs Structure
-
-Each claim in `claims.json` has:
-
-```json
-{
-  "thesis": "Short user-facing investment thesis",
-  "expected_claim": "Specific testable claim from the thesis",
-  "target_ticker": "Company ticker (e.g., AAPL)"
-}
-```
-
-The thesis is background context; the script evaluates retrieval for the `expected_claim`.
-
-## Similarity Thresholds
-
-The evaluation uses a **0.5 similarity threshold** (on a 0–1 scale from cosine similarity):
-
-- `similarity > 0.8` — Excellent match, very likely relevant
-- `0.6 < similarity ≤ 0.8` — Good match, probably relevant
-- `0.5 < similarity ≤ 0.6` — Fair match, possibly relevant
-- `similarity ≤ 0.5` — Poor match, likely not relevant
-
-Adjust the threshold in `runner.py` by modifying:
-```python
-if r.get("similarity", 0) > 0.5:  # Change 0.5 to your threshold
-```
-
-## Troubleshooting
-
-### No results returned
-
-1. Check if filings exist:
-   ```bash
-   cd backend
-   python manage.py shell
-   >>> from apps.ledger.models import Filing
-   >>> Filing.objects.count()
-   ```
-
-2. Check if chunks are created:
-   ```bash
-   >>> from apps.ledger.models import Chunk
-   >>> Chunk.objects.count()
-   ```
-
-3. Check if embeddings are populated:
-   ```bash
-   >>> Chunk.objects.filter(embedding__isnull=False).count()
-   ```
-
-### Embedding service errors
-
-- Ensure Ollama is running:
-  ```bash
-  curl http://localhost:11434/api/tags
-  ```
-
-- Check `OLLAMA_BASE_URL` and `OLLAMA_EMBED_MODEL` in `.env`
-
-### Database connection errors
-
-- Verify PostgreSQL is running:
-  ```bash
-  docker ps | grep thesisledger-db
-  ```
-
-- Check connection settings in `.env`
-
-## Development
-
-### Adding Custom Evaluation Pairs
-
-Edit `claims.json` and add new pairs following the same structure:
-
-```json
-{
-  "thesis": "Your investment thesis here",
-  "expected_claim": "A specific, testable claim",
-  "target_ticker": "TICKER"
-}
-```
-
-### Modifying Metrics
-
-Edit the `RAGEvaluator` class in `runner.py`:
-
-- **`calculate_hit_rate()`** — Change relevance threshold
-- **`search_chunks()`** — Modify ranking/filtering logic
-- **`format_output()`** — Change output formatting
-
-## Performance Notes
-
-- Evaluation runs in ~30 seconds for 20 claims (depending on chunk count)
-- Vector search uses pgvector's HNSW index if present (see `docs/data_model.md`)
-- Embedding generation via Ollama takes ~100-200ms per claim
-
-## Next Steps
-
-- Run evaluation on each dev iteration to track RAG quality
-- Adjust chunk size/overlap to improve hit-rate
-- Use results to refine embedding model selection
-- Integrate into CI/CD for regression detection
-
+See `docs-local/METRICS.md`.
