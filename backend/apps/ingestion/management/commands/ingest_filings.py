@@ -9,11 +9,10 @@ from datetime import date
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
 
-from apps.ingestion.chunker import chunk_text
 from apps.ingestion.cleaner import clean_filing_html, detect_filing_type
-from apps.ledger.models import Chunk, Company, Filing
+from apps.ingestion.pipeline import IngestionError, ingest_filing
+from apps.ledger.models import Company, Filing
 
 
 class Command(BaseCommand):
@@ -136,33 +135,21 @@ class Command(BaseCommand):
         if not filing_type:
             filing_type = detect_filing_type(raw_text)
 
-        # Create filing record
-        filing = Filing.objects.create(
-            company=company,
-            filing_type=filing_type,
-            period_end=period_end,
-            filed_at=period_end,  # Approximate
-            accession_number=self._generate_accession(company.cik, period_year),
-            source_url=f"file://{filing_path.absolute()}",
-            raw_text=raw_text,
-            ingested_at=timezone.now(),
-        )
-
-        # Create chunks
-        chunk_count = 0
-        for chunk_info in chunk_text(raw_text):
-            Chunk.objects.create(
-                filing=filing,
-                ordinal=chunk_info.ordinal,
-                section=chunk_info.section,
-                text=chunk_info.text,
-                char_start=chunk_info.char_start,
-                char_end=chunk_info.char_end,
-                token_count=len(chunk_info.text) // 4,  # Rough estimate
+        try:
+            filing = ingest_filing(
+                company,
+                filing_type=filing_type,
+                period_end=period_end,
+                filed_at=period_end,  # Approximate
+                accession_number=self._generate_accession(company.cik, period_year),
+                source_url=f"file://{filing_path.absolute()}",
+                raw_text=raw_text,
             )
-            chunk_count += 1
+        except IngestionError as e:
+            self.stdout.write(self.style.WARNING(f"Skipping {filing_path}: {e}"))
+            return 0, 0
 
-        return 1, chunk_count
+        return 1, filing.chunks.count()
 
     def _parse_filename(self, filename: str) -> tuple[str, int]:
         """Extract filing type and year from filename."""
