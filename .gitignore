@@ -41,7 +41,6 @@ yarn-error.log*
 data/raw/**
 !data/raw/
 !data/raw/README.md
-!data/raw/**/*.json
 data/processed/
 *.bin
 *.gguf
