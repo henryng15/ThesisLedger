@@ -4,8 +4,11 @@ Shapes come from docs/api_contract.md. Thesis and claim endpoints hit the
 database. Analysis job endpoints now use real AnalysisJob model.
 """
 
+import logging
+
 from django.db import transaction
 from django.db.models import Count
+from kombu.exceptions import OperationalError as KombuOperationalError
 from rest_framework import status as http
 from rest_framework.decorators import api_view
 from rest_framework.request import Request
@@ -22,7 +25,10 @@ from apps.ledger.serializers import (
     ThesisCreateSerializer,
     ThesisSerializer,
 )
+from apps.ledger.cache import get_cached_job_id, set_cached_job_id
 from apps.ledger.services import compute_cache_key, create_analysis_job
+
+logger = logging.getLogger(__name__)
 
 
 def api_error(code: str, message: str, status_code: int, field: str | None = None) -> Response:
@@ -205,14 +211,27 @@ def thesis_analyze(request: Request, thesis_id: str) -> Response:
             "claim_ids",
         )
 
-    # Check for recent completed job with same cache_key (cache-aside)
+    # Cache-aside: Redis first, then the job table. Redis is an optimisation,
+    # so a cache miss or an unreachable Redis both just fall through.
     cache_key = compute_cache_key(thesis)
-    existing_job = AnalysisJob.objects.filter(
-        cache_key=cache_key,
-        status__in=[AnalysisJob.Status.DONE, AnalysisJob.Status.PENDING, AnalysisJob.Status.RUNNING],
-    ).first()
+    existing_job = None
+
+    cached_job_id = get_cached_job_id(cache_key)
+    if cached_job_id:
+        existing_job = AnalysisJob.objects.filter(id=cached_job_id).first()
+
+    if existing_job is None:
+        existing_job = AnalysisJob.objects.filter(
+            cache_key=cache_key,
+            status__in=[
+                AnalysisJob.Status.DONE,
+                AnalysisJob.Status.PENDING,
+                AnalysisJob.Status.RUNNING,
+            ],
+        ).first()
 
     if existing_job:
+        set_cached_job_id(cache_key, str(existing_job.id))
         return Response(
             {
                 "job_id": str(existing_job.id),
@@ -224,17 +243,21 @@ def thesis_analyze(request: Request, thesis_id: str) -> Response:
             status=http.HTTP_202_ACCEPTED,
         )
 
-    # Create new job
     job = create_analysis_job(thesis)
+    set_cached_job_id(cache_key, str(job.id))
 
-    # Import here to avoid circular import; task will be created in A5
+    # Imported here to avoid a circular import. If the broker is unreachable
+    # the request must still succeed, so fall back to running inline.
     try:
         from apps.ledger.tasks import run_analysis_task
-        run_analysis_task.delay(str(job.id))
-    except ImportError:
-        # Celery not set up yet; run synchronously for dev
+
+        run_analysis_task.apply_async(args=[str(job.id)], retry=False)
+    except (ImportError, KombuOperationalError, OSError) as exc:
+        logger.warning("Celery enqueue failed (%s); running analysis inline", exc)
         from apps.ledger.services import run_mock_analysis
+
         run_mock_analysis(job)
+        job.refresh_from_db()
 
     return Response(
         {
