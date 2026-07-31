@@ -65,7 +65,9 @@ class EvaluationRunner:
     def load_claims(self) -> Dict[str, Any]:
         """Load thesis-claim pairs from JSON."""
         try:
-            with open(self.claims_file, 'r') as f:
+            # utf-8-sig so a byte-order mark left by an editor does not break
+            # the parse; it is a no-op for plain UTF-8.
+            with open(self.claims_file, 'r', encoding='utf-8-sig') as f:
                 return json.load(f)
         except FileNotFoundError:
             print(f"Error: {self.claims_file} not found", file=sys.stderr)
