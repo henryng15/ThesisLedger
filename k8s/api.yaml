@@ -33,16 +33,24 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
+          # Probes reach the pod by IP, which is never in DJANGO_ALLOWED_HOSTS,
+          # so Django answers 400 unless the Host header is set explicitly.
           readinessProbe:
             httpGet:
               path: /api/health/
               port: 8000
+              httpHeaders:
+                - name: Host
+                  value: api
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /api/health/
               port: 8000
+              httpHeaders:
+                - name: Host
+                  value: api
             initialDelaySeconds: 30
             periodSeconds: 30
 ---
