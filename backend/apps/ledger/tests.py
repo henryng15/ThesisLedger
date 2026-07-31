@@ -4,7 +4,10 @@ Thesis and claim endpoints are backed by the database from Day 3 on; the job
 endpoint still serves the Day 2 fixture, so its test only guards the shape.
 """
 
+from pathlib import Path
+
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from apps.ledger.models import Claim, Company, Thesis
@@ -295,6 +298,24 @@ def test_approve_rejects_empty_list(client, thesis, claims):
 
     assert response.status_code == 400
     assert response.json()["error"]["field"] == "claim_ids"
+
+
+# --- upload flow ----------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_upload_file_persists_to_media_storage(client, tmp_path, settings):
+    settings.MEDIA_ROOT = tmp_path / "uploads"
+    settings.MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
+    payload = SimpleUploadedFile("sample.txt", b"hello world", content_type="text/plain")
+    response = client.post(reverse("upload-file"), {"file": payload}, format="multipart")
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["filename"] == "sample.txt"
+    assert body["size"] == 11
+    assert Path(body["path"]).exists()
 
 
 # --- analyze / job (stubbed until Day 4) -----------------------------------

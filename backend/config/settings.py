@@ -118,6 +118,9 @@ REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
 
 # Embedding dimension for pgvector columns (Ollama nomic-embed-text = 768).
 EMBEDDING_DIM = int(env("EMBEDDING_DIM", "768"))
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+LLM_PROVIDER = env("LLM_PROVIDER", "ollama")
 
 LOGGING = {
     "version": 1,
