@@ -138,6 +138,14 @@ Response `202`:
 { "job_id": "…", "status": "pending", "thesis_id": "…", "total_claims": 3 }
 ```
 
+`status` reflects the job's actual state at response time. It is `pending` in the
+normal case (queued for a Celery worker), but if the broker is unreachable the
+analysis runs inline and the job may already be `running` or `done`. Clients
+should poll `GET /api/jobs/{id}` until a terminal state either way.
+
+A repeat request for an unchanged thesis is deduplicated: the response carries an
+extra `"cached": true` and reuses the existing `job_id`.
+
 Errors: `400 validation_error` if no approved claims.
 
 ## 10. `GET /api/jobs/{id}/`
