@@ -16,7 +16,7 @@ from apps.ledger.services import fail_job, run_mock_analysis, run_real_analysis
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+@shared_task(bind=True, max_retries=2, default_retry_delay=30, ignore_result=True)
 def run_analysis_task(self, job_id: str) -> dict:
     """Execute analysis for a job.
 

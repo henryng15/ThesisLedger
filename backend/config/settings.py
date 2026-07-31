@@ -126,19 +126,27 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 600  # 10 minutes max per task
 
-# Ollama configuration
-OLLAMA_URL = env("OLLAMA_URL", "http://localhost:11434")
+# Fail fast when the broker is down. The API falls back to running analysis
+# inline, so a request must not block on twenty reconnect attempts first.
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 0
+CELERY_BROKER_TRANSPORT_OPTIONS = {"max_retries": 0}
+CELERY_REDIS_RETRY_ON_TIMEOUT = False
+CELERY_RESULT_BACKEND_MAX_RETRIES = 0
+
+# Ollama configuration. OLLAMA_URL is the single source of truth for the
+# endpoint; OLLAMA_BASE_URL is kept as an alias for older callers.
+OLLAMA_URL = env("OLLAMA_URL", env("OLLAMA_BASE_URL", "http://localhost:11434"))
+OLLAMA_BASE_URL = OLLAMA_URL
 OLLAMA_MODEL = env("OLLAMA_MODEL", "llama3.2:3b")
 OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+LLM_PROVIDER = env("LLM_PROVIDER", "ollama")
 
 # Analysis mode: set to True to use real LangGraph pipeline
 USE_REAL_ANALYSIS = env_bool("USE_REAL_ANALYSIS", False)
 
 # Embedding dimension for pgvector columns (Ollama nomic-embed-text = 768).
 EMBEDDING_DIM = int(env("EMBEDDING_DIM", "768"))
-OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
-LLM_PROVIDER = env("LLM_PROVIDER", "ollama")
 
 LOGGING = {
     "version": 1,
