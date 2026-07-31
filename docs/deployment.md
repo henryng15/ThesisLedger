@@ -172,14 +172,15 @@ CORS_ALLOWED_ORIGINS=https://<app>.vercel.app
 CSRF_TRUSTED_ORIGINS=https://<app>.vercel.app
 ```
 
-### Migrate and seed
+### Migrate
 
-Run once, against the **direct** Supabase connection (port 5432), not the
-pooler:
+Schema only — the data comes from the corpus dump in step 6, so do **not** run
+`seed_companies` here. Run against the **direct** Supabase connection (port
+5432), not the pooler; pgbouncer in transaction mode cannot run every migration
+statement.
 
 ```bash
 railway run --service api python manage.py migrate
-railway run --service api python manage.py seed_companies
 ```
 
 ---
@@ -200,38 +201,51 @@ deploy, put the Vercel URL into Railway's `CORS_ALLOWED_ORIGINS` and
 
 ## 6. Load the corpus
 
-Ingestion is a one-off batch, not part of the request path. It needs the
-database and Ollama but not Railway, so the simplest place to run it is your own
-machine pointed at the production services:
+The corpus is **already ingested and embedded** in the local development
+database. Embedding is the expensive part — hours of CPU inference — but the
+vectors are ordinary rows once computed, so moving them is a 15 MB file copy,
+not a re-run.
 
 ```bash
+# 1. Schema first, against the DIRECT Supabase connection (port 5432)
 cd backend
-export POSTGRES_HOST=<supabase-direct-host> POSTGRES_PORT=5432 \
-       POSTGRES_DB=postgres POSTGRES_USER=postgres.<ref> \
-       POSTGRES_PASSWORD=<pw> POSTGRES_SSLMODE=require
-export OLLAMA_URL=https://<DOMAIN> OLLAMA_TOKEN=<token>
+POSTGRES_HOST=<direct-host> POSTGRES_PORT=5432 \
+POSTGRES_DB=postgres POSTGRES_USER=postgres.<ref> \
+POSTGRES_PASSWORD=<pw> POSTGRES_SSLMODE=require \
+  python manage.py migrate
 
-SEC_USER_AGENT="ThesisLedger/0.1 (you@example.com)" python ../scripts/download_filings.py
-python manage.py ingest_filings --data-dir ../data/raw
-python -c "import django; django.setup(); from apps.ingestion.embeddings import embed_all_chunks; embed_all_chunks()"
+# 2. Dump locally
+cd ..
+./scripts/export_corpus.sh corpus.sql
+
+# 3. Load
+psql "postgresql://postgres.<ref>:<pw>@<direct-host>:5432/postgres?sslmode=require" \
+  -v ON_ERROR_STOP=1 -f corpus.sql
 ```
-
-**Budget real time for the last step.** Embedding is CPU-bound and does not
-parallelise — Ollama saturates on one request at a time. Measured at ~26
-chunks/min on a 16-core machine; the 2-core Oracle VM will be slower, and every
-call now crosses the internet. For the 1330-chunk corpus, expect **2–5 hours**.
-Run it under `nohup` or `tmux` and walk away.
 
 Verify:
 
 ```bash
-python -c "
-import django; django.setup()
-from apps.ledger.models import Chunk
-print(Chunk.objects.exclude(embedding__isnull=True).count(), 'of', Chunk.objects.count())"
+psql "$TARGET_URL" -c \
+  "SELECT count(*) FILTER (WHERE embedding IS NOT NULL) AS embedded, count(*) FROM ledger_chunk"
 ```
 
----
+Expect **1330 of 1330**. Do not run `seed_companies` afterwards — the dump
+already carries the company rows, and re-seeding would conflict on ticker.
+
+### If you ever do need to re-ingest from scratch
+
+Only necessary when changing the corpus, the chunker, or the embedding model:
+
+```bash
+SEC_USER_AGENT="ThesisLedger/0.1 (you@example.com)" python scripts/download_filings.py
+python manage.py ingest_filings --data-dir ../data/raw
+python -c "import django; django.setup(); from apps.ingestion.embeddings import embed_all_chunks; embed_all_chunks()"
+```
+
+Measured at ~26 chunks/min on a 16-core machine — about 50 minutes for 1330
+chunks. Against the 2-core Oracle box over the internet it is materially
+slower, so run it under `nohup` or `tmux`. This is exactly why the dump exists.
 
 ## Smoke test
 
