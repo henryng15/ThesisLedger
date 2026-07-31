@@ -53,14 +53,14 @@ workers consume commands continuously whether or not any work exists. Upstash
 bills per command, and the free tier is 10k/day — an idle worker can exhaust
 that on its own.
 
-Mitigations, in order of preference:
+`CELERY_BROKER_TRANSPORT_OPTIONS` already sets a 30s socket timeout and a 5s
+polling interval, which cuts idle command volume substantially — a queued job
+still starts within ~5 seconds. Raise `CELERY_POLLING_INTERVAL` further if you
+are still hitting the cap.
 
-- Run the worker only while demoing, not around the clock
-- Raise `BROKER_TRANSPORT_OPTIONS` polling intervals
-- Move Redis to Railway alongside the app, where it is not metered per command
-
-If the demo is a one-off, the free tier is fine. For anything continuous, put
-Redis on Railway.
+Beyond that, the simplest lever is to stop the worker when you are not demoing.
+An idle worker is the only thing consuming commands when nobody is using the
+app.
 
 ---
 

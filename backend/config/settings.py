@@ -146,7 +146,14 @@ CELERY_TASK_TIME_LIMIT = 600  # 10 minutes max per task
 # inline, so a request must not block on twenty reconnect attempts first.
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False
 CELERY_BROKER_CONNECTION_MAX_RETRIES = 0
-CELERY_BROKER_TRANSPORT_OPTIONS = {"max_retries": 0}
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "max_retries": 0,
+    # An idle worker re-issues BRPOP on every timeout, and Upstash bills per
+    # command. A longer block means far fewer commands for the same latency
+    # ceiling: a job still starts within this many seconds of being queued.
+    "socket_timeout": 30,
+    "polling_interval": float(env("CELERY_POLLING_INTERVAL", "5")),
+}
 CELERY_REDIS_RETRY_ON_TIMEOUT = False
 CELERY_RESULT_BACKEND_MAX_RETRIES = 0
 
