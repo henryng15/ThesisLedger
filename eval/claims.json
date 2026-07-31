@@ -1,0 +1,102 @@
+[
+  {
+    "thesis": "Apple's services revenue is growing faster than hardware sales",
+    "expected_claim": "Services segment revenue growth exceeds Products segment growth year-over-year",
+    "target_ticker": "AAPL"
+  },
+  {
+    "thesis": "Microsoft's cloud infrastructure spending is ramping up",
+    "expected_claim": "Capital expenditures for cloud and infrastructure have increased substantially in recent periods",
+    "target_ticker": "MSFT"
+  },
+  {
+    "thesis": "Google is diversifying beyond advertising",
+    "expected_claim": "Revenue from non-advertising sources including Google Cloud is growing",
+    "target_ticker": "GOOGL"
+  },
+  {
+    "thesis": "JPMorgan Chase faces rising credit loss provisions",
+    "expected_claim": "Allowance for credit losses has increased compared to prior year periods",
+    "target_ticker": "JPM"
+  },
+  {
+    "thesis": "UnitedHealth Group benefits from increasing healthcare demand",
+    "expected_claim": "Medical membership and premiums are growing in both Medicare and commercial segments",
+    "target_ticker": "UNH"
+  },
+  {
+    "thesis": "Tesla is scaling production across multiple factories",
+    "expected_claim": "Total vehicle production capacity has expanded with new gigafactory operations",
+    "target_ticker": "TSLA"
+  },
+  {
+    "thesis": "Johnson & Johnson's pharma pipeline is strong",
+    "expected_claim": "New drug approvals and pipeline advancement contributed to growth in pharmaceutical revenues",
+    "target_ticker": "JNJ"
+  },
+  {
+    "thesis": "Amazon is investing heavily in logistics",
+    "expected_claim": "Capital expenditures related to distribution centers and fulfillment infrastructure are increasing",
+    "target_ticker": "AMZN"
+  },
+  {
+    "thesis": "NVIDIA's data center business dominates revenue",
+    "expected_claim": "Data center revenue represents the largest and fastest-growing segment of NVIDIA's business",
+    "target_ticker": "NVDA"
+  },
+  {
+    "thesis": "Meta's advertising efficiency is improving",
+    "expected_claim": "Average revenue per user has increased despite competitive pressures",
+    "target_ticker": "META"
+  },
+  {
+    "thesis": "Procter & Gamble is managing inflation through pricing",
+    "expected_claim": "Price increases have offset commodity and supply chain cost pressures",
+    "target_ticker": "PG"
+  },
+  {
+    "thesis": "Bank of America faces margin compression",
+    "expected_claim": "Net interest margin has declined due to interest rate environment changes",
+    "target_ticker": "BAC"
+  },
+  {
+    "thesis": "Netflix is expanding into advertising revenue",
+    "expected_claim": "Ad-supported subscription tier has contributed new revenue streams",
+    "target_ticker": "NFLX"
+  },
+  {
+    "thesis": "ExxonMobil is reducing fossil fuel exposure",
+    "expected_claim": "Renewable energy investments and strategic pivots are being made in quarterly filings",
+    "target_ticker": "XOM"
+  },
+  {
+    "thesis": "Visa's transaction volumes are accelerating",
+    "expected_claim": "Cross-border transaction volume and domestic spending volumes have increased",
+    "target_ticker": "V"
+  },
+  {
+    "thesis": "Coca-Cola's emerging market exposure is significant",
+    "expected_claim": "International markets represent a substantial portion of total revenue and growth",
+    "target_ticker": "KO"
+  },
+  {
+    "thesis": "Boeing faces regulatory and production challenges",
+    "expected_claim": "Aircraft delivery rates and backlog are impacted by manufacturing constraints",
+    "target_ticker": "BA"
+  },
+  {
+    "thesis": "Costco is expanding warehouse count and member base",
+    "expected_claim": "New warehouse openings and membership renewals are driving revenue growth",
+    "target_ticker": "COST"
+  },
+  {
+    "thesis": "Oracle is transitioning from licenses to cloud subscriptions",
+    "expected_claim": "Cloud services and subscription revenue growth is exceeding legacy license revenue decline",
+    "target_ticker": "ORCL"
+  },
+  {
+    "thesis": "Uber is approaching profitability at scale",
+    "expected_claim": "Operating leverage improvements and positive segment margins are being achieved",
+    "target_ticker": "UBER"
+  }
+]

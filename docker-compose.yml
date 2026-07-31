@@ -31,6 +31,24 @@ services:
       timeout: 3s
       retries: 10
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: thesisledger-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - with-ollama
+
 volumes:
   pgdata:
   redisdata:
+  ollama_models:
