@@ -91,7 +91,10 @@ IMPORTANT:
 - Only use "contradicted" if there's clear evidence AGAINST the claim
 - Use "insufficient_evidence" if the passages don't directly address the claim
 - The quote MUST be an exact substring from the provided evidence
-- If insufficient_evidence, leave quote empty"""),
+- If insufficient_evidence, leave quote empty
+
+Reply with JSON only, exactly these three keys:
+{{"status": "supported|contradicted|insufficient_evidence", "explanation": "1-2 sentences", "quote": "exact substring, or empty"}}"""),
     ("human", """Claim to verify:
 {claim}
 
@@ -111,6 +114,46 @@ def get_llm(model: Optional[str] = None) -> ChatOllama:
         base_url=settings.OLLAMA_URL,
         temperature=0.0,
         format="json",
+    )
+
+
+VALID_STATUSES = {"supported", "contradicted", "insufficient_evidence"}
+
+
+def _parse_classification(content: str) -> ClassificationResult:
+    """Turn the model's JSON reply into a ClassificationResult.
+
+    A 3B model does not always honour the requested key names, so accept a few
+    aliases and fall back to insufficient_evidence rather than raising — an
+    unparseable answer is exactly the case where we should not assert a verdict.
+    """
+    import json
+
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        logger.warning("Classifier returned non-JSON: %s", str(content)[:120])
+        return ClassificationResult(
+            status="insufficient_evidence",
+            explanation="Model did not return parseable JSON.",
+            quote="",
+            chunk_id=None,
+        )
+
+    if not isinstance(data, dict):
+        data = {}
+
+    status = data.get("status") or data.get("classification") or data.get("verdict")
+    status = str(status).strip().lower().replace(" ", "_") if status else ""
+    if status not in VALID_STATUSES:
+        logger.warning("Classifier returned unknown status %r", status)
+        status = "insufficient_evidence"
+
+    return ClassificationResult(
+        status=status,
+        explanation=str(data.get("explanation") or data.get("reason") or "")[:1000],
+        quote=str(data.get("quote") or data.get("evidence") or ""),
+        chunk_id=None,
     )
 
 
@@ -154,14 +197,16 @@ def classify_claim(
     evidence_text = "\n\n".join(evidence_parts)
 
     try:
+        # Deliberately not .with_structured_output(): on Ollama, schema-constrained
+        # decoding measured 522s vs 78s for the same 5-passage prompt, and gave a
+        # worse verdict. The prompt asks for the shape; we validate it ourselves.
         llm = get_llm()
-        chain = CLASSIFICATION_PROMPT | llm.with_structured_output(ClassificationResult)
-
-        result = chain.invoke({
+        raw = (CLASSIFICATION_PROMPT | llm).invoke({
             "claim": claim_text,
             "company": company_ticker,
             "evidence": evidence_text,
         })
+        result = _parse_classification(raw.content)
 
         # Verify quote exists in chunks (prevent hallucination)
         if result.status != "insufficient_evidence" and result.quote:
@@ -199,14 +244,16 @@ def classify_claim_simple(
 ) -> ClassificationResult:
     """Classify with pre-fetched evidence (for testing/pipeline use)."""
     try:
+        # Deliberately not .with_structured_output(): on Ollama, schema-constrained
+        # decoding measured 522s vs 78s for the same 5-passage prompt, and gave a
+        # worse verdict. The prompt asks for the shape; we validate it ourselves.
         llm = get_llm()
-        chain = CLASSIFICATION_PROMPT | llm.with_structured_output(ClassificationResult)
-
-        result = chain.invoke({
+        raw = (CLASSIFICATION_PROMPT | llm).invoke({
             "claim": claim_text,
             "company": company_ticker,
             "evidence": evidence_text,
         })
+        result = _parse_classification(raw.content)
         return result
 
     except Exception as e:
@@ -255,7 +302,7 @@ def build_rag_chain(company_id: str, company_ticker: str, k: int = 5):
             "evidence": lambda x: format_docs(retriever.invoke(x)),
         }
         | CLASSIFICATION_PROMPT
-        | llm.with_structured_output(ClassificationResult)
+        | llm
     )
 
     return chain
