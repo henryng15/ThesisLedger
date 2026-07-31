@@ -113,8 +113,26 @@ SPECTACULAR_SETTINGS = {
 
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 
-# Redis (broker + cache) — consumed by Celery on Day 9.
+# Redis (broker + cache)
 REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
+
+# Celery configuration
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 600  # 10 minutes max per task
+
+# Ollama configuration
+OLLAMA_URL = env("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = env("OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+
+# Analysis mode: set to True to use real LangGraph pipeline
+USE_REAL_ANALYSIS = env_bool("USE_REAL_ANALYSIS", False)
 
 # Embedding dimension for pgvector columns (Ollama nomic-embed-text = 768).
 EMBEDDING_DIM = int(env("EMBEDDING_DIM", "768"))

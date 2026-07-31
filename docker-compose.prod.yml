@@ -1,0 +1,150 @@
+# Production Docker Compose for ThesisLedger
+# Deploy with: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL with pgvector
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: thesisledger-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-thesisledger}
+      POSTGRES_USER: ${POSTGRES_USER:-thesisledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-thesisledger}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery broker and cache
+  redis:
+    image: redis:7-alpine
+    container_name: thesisledger-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama for LLM and embeddings
+  ollama:
+    image: ollama/ollama:latest
+    container_name: thesisledger-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 12G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Django API server
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: thesisledger-api
+    restart: unless-stopped
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY required}
+      - DJANGO_DEBUG=false
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=${POSTGRES_DB:-thesisledger}
+      - POSTGRES_USER=${POSTGRES_USER:-thesisledger}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      - USE_REAL_ANALYSIS=${USE_REAL_ANALYSIS:-true}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery worker for background tasks
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: thesisledger-worker
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "-l", "info", "-c", "2"]
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_DEBUG=false
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=${POSTGRES_DB:-thesisledger}
+      - POSTGRES_USER=${POSTGRES_USER:-thesisledger}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      - USE_REAL_ANALYSIS=${USE_REAL_ANALYSIS:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+  # Next.js frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: thesisledger-frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
+    depends_on:
+      - api
+
+  # Caddy reverse proxy with auto HTTPS
+  caddy:
+    image: caddy:2-alpine
+    container_name: thesisledger-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - frontend
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+
+volumes:
+  pgdata:
+  redisdata:
+  ollama_models:
+  caddy_data:
+  caddy_config:

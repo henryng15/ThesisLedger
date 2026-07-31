@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: thesisledger
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: thesisledger-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "config", "worker", "-l", "info", "-c", "2"]
+          envFrom:
+            - configMapRef:
+                name: thesisledger-config
+            - secretRef:
+                name: thesisledger-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+---
+# HorizontalPodAutoscaler for workers (demo: scale manually)
+# kubectl scale deployment worker --replicas=3 -n thesisledger

@@ -1,0 +1,33 @@
+# Caddyfile for ThesisLedger
+# Automatically handles HTTPS with Let's Encrypt
+
+{$DOMAIN:localhost} {
+    # API routes
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+
+    # Health check endpoint
+    handle /health {
+        respond "OK" 200
+    }
+
+    # Frontend
+    handle {
+        reverse_proxy frontend:3000
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+
+    # Headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
