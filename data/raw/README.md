@@ -31,15 +31,22 @@ The JSON structure contains:
 
 ## Tickers Covered
 
-50 major tickers across sectors:
-- **Tech**: AAPL, MSFT, GOOGL, AMZN, NVDA, META, NFLX, ORCL, IBM, INTC
-- **Finance**: JPM, BAC, WFC, GS, MS
-- **Healthcare**: UNH, JNJ, PFE, AZN, LLY
-- **Consumer**: PG, KO, MCD, NKE, HD, COST, WMT, TGT, AZO
-- **Energy**: XOM, CVX, SLB, MPC, COP
-- **Aerospace**: BA, LMT, RTX, GD, NOC
-- **Automotive**: TSLA, F, GM, LCID, RIVN
-- **Growth**: UBER, LYFT, DASH, SPOT, PINS
+10 tickers across five sectors:
+
+| Sector | Tickers |
+|---|---|
+| Technology | AAPL, MSFT, NVDA |
+| Financials | JPM, V |
+| Healthcare | UNH, LLY |
+| Consumer | WMT, KO |
+| Energy | XOM |
+
+Scoped to 10 on purpose: embeddings are generated on CPU on the Oracle ARM box,
+so the corpus needs to stay small enough to re-ingest in minutes rather than hours.
+
+The same list is hardcoded in `scripts/download_filings.py` (`DEFAULT_TICKERS`) and
+`backend/apps/ledger/management/commands/seed_companies.py` (`COMPANIES`). Changing
+one without the other means `ingest_filings` silently skips that ticker.
 
 ## Downloading Filings
 

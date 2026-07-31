@@ -27,17 +27,14 @@ SEC_CIK_LOOKUP = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&com
 SEC_FILINGS_SEARCH = "https://data.sec.gov/api/xbrl/companyfacts/CIK{}.json"
 SEC_FILING_DOWNLOAD = "https://www.sec.gov/Archives/{}"
 
+# Ten companies, two per sector. Kept small on purpose: embedding runs on CPU
+# on the Oracle ARM box, so the corpus has to stay something we can re-ingest.
 DEFAULT_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",  # Tech
-    "JPM", "BAC", "WFC", "GS", "MS",          # Finance
-    "UNH", "JNJ", "PFE", "AZN", "LLY",        # Healthcare
-    "PG", "KO", "MCD", "NKE", "HD",           # Consumer
-    "XOM", "CVX", "SLB", "MPC", "COP",        # Energy
-    "BA", "LMT", "RTX", "GD", "NOC",          # Aerospace
-    "TSLA", "F", "GM", "LCID", "RIVN",        # Automotive
-    "COST", "WMT", "TGT", "AMZN", "AZO",      # Retail
-    "META", "NFLX", "ORCL", "IBM", "INTC",    # Enterprise
-    "UBER", "LYFT", "DASH", "SPOT", "PINS",   # Growth
+    "AAPL", "MSFT", "NVDA",   # Technology
+    "JPM", "V",               # Financials
+    "UNH", "LLY",             # Healthcare
+    "WMT", "KO",              # Consumer
+    "XOM",                    # Energy
 ]
 
 RATE_LIMIT_DELAY = 0.5  # SEC asks for 0.1s minimum; we use 0.5s to be safe
