@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Bring up the local kind cluster used for the parallel-worker demo.
+#
+# NOTE: configmap.yaml points POSTGRES_HOST at "db" and REDIS_URL at "redis",
+# but there are no manifests for either yet. api/worker will not become ready
+# until those are added (or pointed at services outside the cluster).
 set -euo pipefail
 
 CLUSTER="${CLUSTER:-thesisledger}"
