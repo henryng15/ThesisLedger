@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Render docs-local/SPRINT_TODAY.md to a matching PDF.
+"""Render a docs-local Markdown file to a matching PDF.
+
+Usage: python scripts/generate_sprint_today_pdf.py [BASENAME]   (default SPRINT_TODAY)
 
 Deliberately a small Markdown subset — headings, paragraphs, bullets, tables,
 fenced code and bold/inline-code spans — which is all SPRINT_TODAY.md uses.
@@ -9,6 +11,7 @@ Styling follows scripts/generate_plan_pdfs.py so the two docs look like a set.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -22,8 +25,9 @@ from reportlab.platypus import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "docs-local" / "SPRINT_TODAY.md"
-OUT = ROOT / "docs-local" / "SPRINT_TODAY.pdf"
+NAME = sys.argv[1] if len(sys.argv) > 1 else "SPRINT_TODAY"
+SRC = ROOT / "docs-local" / f"{NAME}.md"
+OUT = ROOT / "docs-local" / f"{NAME}.pdf"
 
 NAVY = colors.HexColor("#1a365d")
 SLATE = colors.HexColor("#2d3748")
@@ -114,6 +118,10 @@ def build(md: str, st) -> list:
                 block.append(lines[i])
                 i += 1
             i += 1
+            # reportlab's Preformatted raises on an empty body, and a fence with
+            # only blank lines carries nothing worth rendering anyway.
+            if not any(ln.strip() for ln in block):
+                continue
             pre = Preformatted("\n".join(block), st["code"])
             wrap = Table([[pre]], hAlign="LEFT")
             wrap.setStyle(TableStyle([
@@ -160,7 +168,7 @@ def main() -> None:
         str(OUT), pagesize=letter,
         leftMargin=0.6 * inch, rightMargin=0.6 * inch,
         topMargin=0.5 * inch, bottomMargin=0.5 * inch,
-        title="ThesisLedger — SPRINT_TODAY",
+        title=f"ThesisLedger — {NAME}",
     )
     doc.build(build(SRC.read_text(encoding="utf-8"), st))
     print(f"wrote {OUT.relative_to(ROOT)}")
