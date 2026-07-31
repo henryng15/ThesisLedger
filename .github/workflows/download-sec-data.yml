@@ -1,0 +1,121 @@
+name: Download SEC Filings
+
+on:
+  schedule:
+    # Run every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:  # Allow manual trigger
+  push:
+    paths:
+      - 'scripts/download_filings.py'
+      - '.github/workflows/download-sec-data.yml'
+    branches:
+      - main
+
+jobs:
+  download-filings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 python-dateutil
+
+      - name: Download SEC filings
+        env:
+          SEC_USER_AGENT: 'ThesisLedger/1.0 (+https://github.com/henryng15/thesisledger)'
+        run: |
+          echo "📥 Downloading SEC filings for 50 tickers..."
+          python scripts/download_filings.py
+          echo "✓ Download complete"
+
+          # Show download summary
+          echo ""
+          echo "📊 Data Summary:"
+          find data/raw -name "*.json" | wc -l | xargs echo "  Total files:"
+          du -sh data/raw | awk '{print "  Total size: " $1}'
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if [ -n "$(git status --porcelain data/raw/)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✓ Changes detected in data/raw/"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "ℹ No changes in data/raw/"
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          # Stage only new/modified files
+          git add data/raw/
+
+          # Create commit
+          COMMIT_MSG="chore(data): update SEC filings $(date -u +'%Y-%m-%d')"
+          git commit -m "$COMMIT_MSG"
+
+          # Push to main
+          git push origin main
+
+      - name: Create release with data
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: sec-data-${{ github.run_number }}
+          release_name: SEC Filings Data - ${{ github.run_number }}
+          body: |
+            # SEC Filings Data Package
+
+            Automatically generated SEC 10-K/10-Q filings for 50 major tickers.
+
+            **Contents:**
+            - 50 ticker symbols across all sectors
+            - Latest XBRL companyfacts data from SEC API
+            - JSON format for easy parsing
+
+            **Download data:**
+            ```bash
+            git checkout data-releases/${{ github.run_number }} -- data/raw/
+            ```
+
+            **Generated:** $(date -u)
+          draft: false
+          prerelease: false
+
+      - name: Upload data as artifact
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: sec-filings-data
+          path: data/raw/
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "## SEC Filings Download Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** $([ '${{ steps.check_changes.outputs.has_changes }}' = 'true' ] && echo '✓ Updated' || echo 'ℹ No changes')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Files in data/raw:**" >> $GITHUB_STEP_SUMMARY
+          find data/raw -name "*.json" | wc -l | xargs echo "- " >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total size:** $(du -sh data/raw | awk '{print $1}')" >> $GITHUB_STEP_SUMMARY
