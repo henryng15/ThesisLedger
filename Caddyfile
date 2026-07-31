@@ -1,20 +1,27 @@
 # Caddyfile for ThesisLedger
 #
-# Reverse proxy configuration with automatic HTTPS (Let's Encrypt)
-# Routes traffic to Next.js frontend and Django backend
+# Reverse proxy with automatic HTTPS (Let's Encrypt).
+# Routes traffic to the Next.js frontend and the Django backend.
 #
 # Environment setup (.env required):
 # - DOMAIN: e.g., thesisledger.example.com
-# - FRONTEND_UPSTREAM: e.g., http://localhost:3000 or http://frontend:3000
-# - BACKEND_UPSTREAM: e.g., http://localhost:8000 or http://backend:8000
+# - FRONTEND_UPSTREAM: e.g., http://frontend:3000
+# - BACKEND_UPSTREAM: e.g., http://api:8000
 # - ACME_EMAIL: e.g., admin@example.com (for Let's Encrypt)
 
 {$DOMAIN:localhost} {
-	# Global options
 	encode gzip
+
 	log {
+		output stdout
 		format json
-		level info
+		level INFO
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
 	}
 
 	# Health check endpoint (for load balancers / monitoring)
@@ -22,18 +29,15 @@
 		respond 200 "OK"
 	}
 
-	# API routes → Django backend
-	handle_path /api/* {
-		# Remove /api prefix before forwarding
-		reverse_proxy {$BACKEND_UPSTREAM:http://localhost:8000} {
-			# Preserve original host and scheme for Django
+	# API routes → Django. Path is NOT stripped: Django routes under /api/.
+	handle /api/* {
+		reverse_proxy {$BACKEND_UPSTREAM:http://api:8000} {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Forwarded-Host {host}
 
-			# Timeout settings (adjust if needed)
 			transport http {
 				dial_timeout 5s
 				response_header_timeout 30s
@@ -42,16 +46,16 @@
 		}
 	}
 
-	# Static files and assets
+	# Django static files
 	handle /static/* {
-		reverse_proxy {$BACKEND_UPSTREAM:http://localhost:8000} {
+		reverse_proxy {$BACKEND_UPSTREAM:http://api:8000} {
 			header_up Host {host}
 		}
 	}
 
 	# Django admin panel
 	handle /admin* {
-		reverse_proxy {$BACKEND_UPSTREAM:http://localhost:8000} {
+		reverse_proxy {$BACKEND_UPSTREAM:http://api:8000} {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-For {remote_host}
@@ -61,22 +65,17 @@
 
 	# Root and all other routes → Next.js frontend
 	handle {
-		reverse_proxy {$FRONTEND_UPSTREAM:http://localhost:3000} {
+		reverse_proxy {$FRONTEND_UPSTREAM:http://frontend:3000} {
 			header_up Host {host}
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Forwarded-Host {host}
-
-			# WebSocket support (if Next.js uses it)
-			header_up Connection upgrade
-			header_up Upgrade websocket
 		}
 	}
 }
 
 # Optional: Ollama API endpoint (internal only, not exposed to internet)
-# Uncomment to expose Ollama API on a separate domain/port
 # {$OLLAMA_DOMAIN:ollama.internal} {
 # 	@internal {
 # 		remote_ip 127.0.0.1 ::1
