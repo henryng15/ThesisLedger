@@ -1,17 +1,29 @@
 """Contract + persistence tests for the ledger API (docs/api_contract.md).
 
-Thesis and claim endpoints are backed by the database from Day 3 on; the job
-endpoint still serves the Day 2 fixture, so its test only guards the shape.
+Every endpoint is backed by the database; the job tests build real AnalysisJob
+and Evidence rows rather than the Day 2 fixtures they used to assert against.
 """
 
+from datetime import date
 from pathlib import Path
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.ledger.models import Claim, Company, Thesis
-from apps.ledger.stubs import STUB_JOB_ID
+from apps.ledger.models import (
+    AnalysisJob,
+    Chunk,
+    Claim,
+    Company,
+    Evidence,
+    Filing,
+    Thesis,
+)
+
+QUOTE = "Services revenue reached an all-time high for the fiscal year."
+CHUNK_TEXT = f"Management discussion follows. {QUOTE} Growth was broad based."
 
 CLAIM_FIELDS = {"id", "ordinal", "text", "origin", "is_approved"}
 THESIS_FIELDS = {"id", "company", "text", "status", "claims", "created_at"}
@@ -48,6 +60,48 @@ def claims(thesis) -> list[Claim]:
         Claim.objects.create(thesis=thesis, ordinal=ordinal, text=f"Claim {ordinal}.")
         for ordinal in range(3)
     ]
+
+
+@pytest.fixture
+def finished_job(thesis, claims) -> AnalysisJob:
+    """A completed job with one cited verdict and one insufficient-evidence row."""
+    filing = Filing.objects.create(
+        company=thesis.company,
+        filing_type=Filing.FilingType.ANNUAL,
+        period_end=date(2024, 9, 30),
+        filed_at=date(2024, 10, 30),
+        accession_number="0000320193-24-000123",
+        source_url="https://example.com/aapl-10k",
+        raw_text=CHUNK_TEXT,
+    )
+    chunk = Chunk.objects.create(
+        filing=filing, ordinal=0, section="Item 7", text=CHUNK_TEXT, char_end=len(CHUNK_TEXT)
+    )
+
+    job = AnalysisJob.objects.create(
+        thesis=thesis,
+        status=AnalysisJob.Status.DONE,
+        progress=2,
+        total_claims=2,
+        started_at=timezone.now(),
+        finished_at=timezone.now(),
+    )
+    Evidence.objects.create(
+        job=job,
+        claim=claims[0],
+        status=Evidence.Status.SUPPORTED,
+        explanation="Services revenue grew year over year.",
+        quote=QUOTE,
+        chunk=chunk,
+        similarity=0.91,
+    )
+    Evidence.objects.create(
+        job=job,
+        claim=claims[1],
+        status=Evidence.Status.INSUFFICIENT,
+        explanation="No passage addressed this claim.",
+    )
+    return job
 
 
 def post_json(client, url, payload=None):
@@ -339,13 +393,15 @@ def test_analyze_returns_job_id(client, thesis, claims):
     assert response.status_code == 202
     body = response.json()
     assert set(body) == {"job_id", "status", "thesis_id", "total_claims"}
-    assert body["status"] == "pending"
+    # Normally "pending" (queued for a worker). When the broker is unreachable
+    # the analysis runs inline, so the job can already be terminal here.
+    assert body["status"] in {"pending", "running", "done"}
     assert body["total_claims"] == 1
 
 
 @pytest.mark.django_db
-def test_job_detail_shape_and_citation_rule(client):
-    response = client.get(reverse("job-detail", args=[STUB_JOB_ID]))
+def test_job_detail_shape_and_citation_rule(client, finished_job):
+    response = client.get(reverse("job-detail", args=[finished_job.id]))
 
     assert response.status_code == 200
     body = response.json()
