@@ -19,6 +19,8 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     KeepTogether, Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table,
     TableStyle,
@@ -36,33 +38,56 @@ ACCENT = colors.HexColor("#2b6cb0")
 BORDER = colors.HexColor("#cbd5e0")
 CODEBG = colors.HexColor("#f7fafc")
 
+# The built-in Type 1 faces have no Vietnamese glyphs — anything with diacritics
+# renders as black boxes. DejaVu covers them and ships with most Linux distros.
+DEJAVU = Path("/usr/share/fonts/truetype/dejavu")
+
+
+def register_fonts() -> tuple[str, str, str]:
+    """Return (regular, bold, mono) font names, preferring a Unicode family."""
+    try:
+        pdfmetrics.registerFont(TTFont("DejaVu", DEJAVU / "DejaVuSans.ttf"))
+        pdfmetrics.registerFont(TTFont("DejaVu-Bold", DEJAVU / "DejaVuSans-Bold.ttf"))
+        pdfmetrics.registerFont(TTFont("DejaVu-Mono", DEJAVU / "DejaVuSansMono.ttf"))
+        pdfmetrics.registerFontFamily("DejaVu", normal="DejaVu", bold="DejaVu-Bold")
+        return "DejaVu", "DejaVu-Bold", "DejaVu-Mono"
+    except Exception:
+        return "Helvetica", "Helvetica-Bold", "Courier"
+
+
+BODY_FONT, BOLD_FONT, MONO_FONT = register_fonts()
+
 
 def styles():
     base = getSampleStyleSheet()
     return {
         "title": ParagraphStyle(
-            "T", parent=base["Title"], fontName="Helvetica-Bold", fontSize=14,
+            "T", parent=base["Title"], fontName=BOLD_FONT, fontSize=14,
             leading=17, textColor=NAVY, spaceAfter=8, alignment=TA_CENTER),
         "h1": ParagraphStyle(
-            "H1", parent=base["Heading1"], fontName="Helvetica-Bold", fontSize=11,
+            "H1", parent=base["Heading1"], fontName=BOLD_FONT, fontSize=11,
             leading=13, textColor=NAVY, spaceBefore=12, spaceAfter=5),
         "h2": ParagraphStyle(
-            "H2", parent=base["Heading2"], fontName="Helvetica-Bold", fontSize=9,
+            "H2", parent=base["Heading2"], fontName=BOLD_FONT, fontSize=9,
             leading=11, textColor=ACCENT, spaceBefore=8, spaceAfter=3),
         "body": ParagraphStyle(
-            "B", parent=base["Normal"], fontSize=7.5, leading=10, textColor=SLATE,
-            spaceAfter=4),
+            "B", parent=base["Normal"], fontName=BODY_FONT, fontSize=7.5, leading=10,
+            textColor=SLATE, spaceAfter=4),
         "bullet": ParagraphStyle(
-            "L", parent=base["Normal"], fontSize=7.5, leading=10, textColor=SLATE,
-            leftIndent=12, bulletIndent=4, spaceAfter=2),
+            "L", parent=base["Normal"], fontName=BODY_FONT, fontSize=7.5, leading=10,
+            textColor=SLATE, leftIndent=12, bulletIndent=4, spaceAfter=2),
         "cell": ParagraphStyle(
-            "C", parent=base["Normal"], fontSize=6.8, leading=8.5, textColor=SLATE),
+            "C", parent=base["Normal"], fontName=BODY_FONT, fontSize=6.8, leading=8.5,
+            textColor=SLATE),
         "cellhead": ParagraphStyle(
-            "CH", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=6.8,
+            "CH", parent=base["Normal"], fontName=BOLD_FONT, fontSize=6.8,
             leading=8.5, textColor=colors.white),
         "code": ParagraphStyle(
-            "P", parent=base["Code"], fontName="Courier", fontSize=6.5, leading=8,
+            "P", parent=base["Code"], fontName=MONO_FONT, fontSize=6.5, leading=8,
             textColor=SLATE, leftIndent=8),
+        "quote": ParagraphStyle(
+            "Q", parent=base["Normal"], fontName=BODY_FONT, fontSize=7.5, leading=10,
+            textColor=ACCENT, leftIndent=10, borderPadding=2, spaceAfter=4),
     }
 
 
@@ -70,7 +95,7 @@ def inline(text: str) -> str:
     """Markdown inline spans -> reportlab markup, escaping XML first."""
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    text = re.sub(r"`(.+?)`", r'<font face="Courier" size="7">\1</font>', text)
+    text = re.sub(r"`(.+?)`", rf'<font face="{MONO_FONT}" size="7">\1</font>', text)
     return text
 
 
@@ -155,6 +180,8 @@ def build(md: str, st) -> list:
         elif re.match(r"^\d+\.\s", stripped):
             num, rest = stripped.split(".", 1)
             flow.append(Paragraph(inline(rest.strip()), st["bullet"], bulletText=f"{num}."))
+        elif stripped.startswith(">"):
+            flow.append(Paragraph(inline(stripped.lstrip("> ")), st["quote"]))
         else:
             flow.append(Paragraph(inline(stripped), st["body"]))
         i += 1
