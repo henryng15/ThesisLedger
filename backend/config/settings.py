@@ -81,8 +81,15 @@ DATABASES = {
         "PASSWORD": env("POSTGRES_PASSWORD", "thesisledger"),
         "HOST": env("POSTGRES_HOST", "localhost"),
         "PORT": env("POSTGRES_PORT", "5432"),
+        "CONN_MAX_AGE": int(env("POSTGRES_CONN_MAX_AGE", "60")),
+        "OPTIONS": {"sslmode": env("POSTGRES_SSLMODE", "prefer")},
     }
 }
+
+# Supabase's pooled endpoint runs pgbouncer in transaction mode, which cannot
+# keep a server-side cursor open between statements. Harmless on a direct
+# connection, required on the pooler.
+DISABLE_SERVER_SIDE_CURSORS = env_bool("DISABLE_SERVER_SIDE_CURSORS", False)
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -114,6 +121,13 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+# The frontend (Vercel) is a different origin from the API (Railway), so
+# unsafe-method requests need that origin trusted for CSRF too.
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "http://localhost:3000")
+
+# Railway terminates TLS at its edge and forwards the request over HTTP.
+if env_bool("TRUST_PROXY_SSL_HEADER", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Redis (broker + cache)
 REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
@@ -140,6 +154,11 @@ CELERY_RESULT_BACKEND_MAX_RETRIES = 0
 # endpoint; OLLAMA_BASE_URL is kept as an alias for older callers.
 OLLAMA_URL = env("OLLAMA_URL", env("OLLAMA_BASE_URL", "http://localhost:11434"))
 OLLAMA_BASE_URL = OLLAMA_URL
+
+# Ollama runs on a separate host and is reachable over the public internet, so
+# the gateway in front of it requires a bearer token. Empty means no auth,
+# which is only safe when Ollama is on localhost.
+OLLAMA_TOKEN = env("OLLAMA_TOKEN", "")
 OLLAMA_MODEL = env("OLLAMA_MODEL", "llama3.2:3b")
 OLLAMA_EMBED_MODEL = env("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 LLM_PROVIDER = env("LLM_PROVIDER", "ollama")

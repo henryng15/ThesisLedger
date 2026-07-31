@@ -15,6 +15,8 @@ import logging
 from typing import Literal, Optional
 
 from django.conf import settings
+
+from apps.core.ollama import ollama_headers
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -112,6 +114,8 @@ def get_llm(model: Optional[str] = None) -> ChatOllama:
     return ChatOllama(
         model=model or settings.OLLAMA_MODEL,
         base_url=settings.OLLAMA_URL,
+        # Ollama sits behind a token-authenticated gateway when it runs off-host.
+        client_kwargs={"headers": ollama_headers()},
         temperature=0.0,
         format="json",
     )

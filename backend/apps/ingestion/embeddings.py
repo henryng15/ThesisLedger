@@ -10,6 +10,8 @@ from typing import Optional
 import httpx
 from django.conf import settings
 
+from apps.core.ollama import ollama_headers
+
 logger = logging.getLogger(__name__)
 
 # Connection timeout for Ollama
@@ -36,6 +38,7 @@ def get_embedding(text: str, model: Optional[str] = None) -> list[float]:
     response = httpx.post(
         url,
         json={"model": model, "prompt": text},
+        headers=ollama_headers(),
         timeout=TIMEOUT,
     )
     response.raise_for_status()
@@ -123,6 +126,7 @@ def check_ollama_connection() -> bool:
     try:
         response = httpx.get(
             f"{settings.OLLAMA_URL}/api/tags",
+            headers=ollama_headers(),
             timeout=5.0,
         )
         response.raise_for_status()
