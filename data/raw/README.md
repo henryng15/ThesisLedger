@@ -1,72 +1,48 @@
 # Raw SEC Filings Data
 
-This directory contains downloaded SEC 10-K and 10-Q filings organized by ticker symbol.
+10-K filings downloaded from SEC EDGAR, one directory per ticker.
 
 ## Structure
 
 ```
 raw/
 ├── AAPL/
-│   ├── companyfacts_0000320193_2026-07-29T12:00:00.000000.json
-│   ├── companyfacts_0000320193_2026-06-15T08:30:00.000000.json
-│   └── ...
+│   ├── 10k_2024.htm         # primary document, as filed
+│   └── 10k_2024.meta.json   # accession number, dates, source URL
 ├── MSFT/
-│   ├── companyfacts_0000789019_2026-07-28T14:22:00.000000.json
-│   └── ...
+│   ├── 10k_2025.htm
+│   └── 10k_2025.meta.json
 └── [TICKER]/
-    └── companyfacts_[CIK]_[TIMESTAMP].json
 ```
 
-## File Format
+The `.htm` file is the filing itself — the narrative text the RAG pipeline reads.
+`apps.ingestion` globs `*.htm*`, strips the markup, and chunks the result.
 
-Each file is downloaded from the SEC's XBRL API endpoint:
-```
-https://data.sec.gov/api/xbrl/companyfacts/CIK[###########].json
-```
-
-The JSON structure contains:
-- Company metadata (CIK, entity name, stock symbol)
-- Financial facts organized by taxonomy (us-gaap, ifrs-full, dei)
-- Each fact includes values across multiple fiscal periods and amendments
-
-## Tickers Covered
-
-10 tickers across five sectors:
-
-| Sector | Tickers |
-|---|---|
-| Technology | AAPL, MSFT, NVDA |
-| Financials | JPM, V |
-| Healthcare | UNH, LLY |
-| Consumer | WMT, KO |
-| Energy | XOM |
-
-Scoped to 10 on purpose: embeddings are generated on CPU on the Oracle ARM box,
-so the corpus needs to stay small enough to re-ingest in minutes rather than hours.
-
-The same list is hardcoded in `scripts/download_filings.py` (`DEFAULT_TICKERS`) and
-`backend/apps/ledger/management/commands/seed_companies.py` (`COMPANIES`). Changing
-one without the other means `ingest_filings` silently skips that ticker.
+> Earlier revisions of the downloader fetched XBRL `companyfacts` JSON instead.
+> That endpoint returns numeric financial facts, not filing prose, so none of it
+> was usable for retrieval.
 
 ## Current state (verified 2026-07-31)
 
-**19 filings, 75 MB.** Two most recent 10-Ks per company (XOM and JPM have one
-year each where only a single 10-K falls in the API's recent window).
+**5 filings, 20 MB, 1330 chunks.** Most recent 10-K per company.
 
-| Ticker | Filings | Size | Ticker | Filings | Size |
-|---|---|---|---|---|---|
-| AAPL | 2 | 3.0M | UNH | 2 | 5.5M |
-| MSFT | 2 | 16M | LLY | 2 | 5.4M |
-| NVDA | 2 | 3.9M | WMT | 2 | 4.5M |
-| JPM | 1 | 13M | KO | 2 | 7.4M |
-| V | 2 | 5.6M | XOM | 2 | 12M |
+| Ticker | Company | Sector | Chunks |
+|---|---|---|---|
+| AAPL | Apple | Technology | 160 |
+| MSFT | Microsoft | Technology | 249 |
+| NVDA | NVIDIA | Technology | 262 |
+| V | Visa | Financials | 332 |
+| XOM | Exxon Mobil | Energy | 327 |
 
-Each filing is stored as `10k_{YEAR}.htm` (the primary document) plus a
-`10k_{YEAR}.meta.json` recording accession number, period end, filing date and
-source URL.
+Scoped to 5 companies / 1 filing each for the demo. Embedding is CPU-bound
+through Ollama at roughly 35 chunks/min, so this corpus indexes in about 40
+minutes; the earlier 10-company two-year corpus would have taken 3.5 hours.
 
-**Nothing here is committed to git.** 75 MB of HTML does not belong in the repo,
-and the download is reproducible in about 20 seconds — just run the script.
+Each filing is stored as `10k_{YEAR}.htm` plus a `10k_{YEAR}.meta.json`
+recording accession number, period end, filing date and source URL.
+
+**Nothing here is committed to git.** The download is reproducible in seconds —
+just run the script.
 
 ## Downloading Filings
 

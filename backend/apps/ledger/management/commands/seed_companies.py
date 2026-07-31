@@ -10,12 +10,7 @@ COMPANIES = [
     {"ticker": "AAPL", "name": "Apple Inc.", "cik": "0000320193"},
     {"ticker": "MSFT", "name": "Microsoft Corporation", "cik": "0000789019"},
     {"ticker": "NVDA", "name": "NVIDIA Corporation", "cik": "0001045810"},
-    {"ticker": "JPM", "name": "JPMorgan Chase & Co.", "cik": "0000019617"},
     {"ticker": "V", "name": "Visa Inc.", "cik": "0001403161"},
-    {"ticker": "UNH", "name": "UnitedHealth Group Inc.", "cik": "0000731766"},
-    {"ticker": "LLY", "name": "Eli Lilly and Company", "cik": "0000059478"},
-    {"ticker": "WMT", "name": "Walmart Inc.", "cik": "0000104169"},
-    {"ticker": "KO", "name": "The Coca-Cola Company", "cik": "0000021344"},
     {"ticker": "XOM", "name": "Exxon Mobil Corporation", "cik": "0000034088"},
 ]
 

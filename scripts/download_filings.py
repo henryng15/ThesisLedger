@@ -32,14 +32,13 @@ SEC_TICKER_MAP = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS = "https://data.sec.gov/submissions/CIK{cik}.json"
 SEC_ARCHIVE = "https://www.sec.gov/Archives/edgar/data/{cik_int}/{accession}/{document}"
 
-# Ten companies, two per sector. Kept small on purpose: embedding runs on CPU
-# on the Oracle ARM box, so the corpus has to stay something we can re-ingest.
+# Five companies, one filing each. Sized for the demo: embedding is CPU-bound
+# through Ollama at roughly 35 chunks/min, so a 10-company two-year corpus would
+# take about 3.5 hours to index. This one takes well under an hour.
 # Must stay in sync with COMPANIES in seed_companies.py.
 DEFAULT_TICKERS = [
     "AAPL", "MSFT", "NVDA",   # Technology
-    "JPM", "V",               # Financials
-    "UNH", "LLY",             # Healthcare
-    "WMT", "KO",              # Consumer
+    "V",                      # Financials
     "XOM",                    # Energy
 ]
 
@@ -200,7 +199,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tickers", nargs="+", default=DEFAULT_TICKERS)
     parser.add_argument(
-        "--per-ticker", type=int, default=2, help="How many recent 10-Ks per company"
+        "--per-ticker", type=int, default=1, help="How many recent 10-Ks per company"
     )
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR)
     parser.add_argument("--user-agent", default=os.getenv("SEC_USER_AGENT", ""))

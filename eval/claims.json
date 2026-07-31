@@ -1,8 +1,12 @@
 {
   "_meta": {
-    "description": "Hand-labelled evaluation set: 10 theses, 30 claims, one thesis per company in the corpus.",
-    "verdicts": ["supported", "contradicted", "insufficient_evidence"],
-    "balance": "10 supported / 10 contradicted / 10 insufficient_evidence",
+    "description": "Hand-labelled evaluation set: 5 theses, 15 claims, one thesis per company in the corpus.",
+    "verdicts": [
+      "supported",
+      "contradicted",
+      "insufficient_evidence"
+    ],
+    "balance": "5 contradicted / 5 insufficient_evidence / 5 supported",
     "note": "Verdicts are expectations written against the 10-K filings in data/raw. Re-check them if the corpus year changes.",
     "labelled": "2026-07-31"
   },
@@ -83,31 +87,6 @@
       ]
     },
     {
-      "thesis_id": "JPM-001",
-      "ticker": "JPM",
-      "thesis_text": "JPMorgan's scale across banking segments insulates it from rate volatility.",
-      "claims": [
-        {
-          "claim_id": "JPM-001-C1",
-          "text": "JPMorgan discusses net interest income as a driver of its results.",
-          "expected_verdict": "supported",
-          "evidence_type": "management_discussion"
-        },
-        {
-          "claim_id": "JPM-001-C2",
-          "text": "JPMorgan states it is not subject to capital requirements from banking regulators.",
-          "expected_verdict": "contradicted",
-          "evidence_type": "risk_factors"
-        },
-        {
-          "claim_id": "JPM-001-C3",
-          "text": "JPMorgan's headcount will decrease next year due to automation.",
-          "expected_verdict": "insufficient_evidence",
-          "evidence_type": "forward_looking"
-        }
-      ]
-    },
-    {
       "thesis_id": "V-001",
       "ticker": "V",
       "thesis_text": "Visa's network model produces durable operating margins with limited credit risk.",
@@ -127,106 +106,6 @@
         {
           "claim_id": "V-001-C3",
           "text": "Visa's transaction volume in India grew faster than in Brazil.",
-          "expected_verdict": "insufficient_evidence",
-          "evidence_type": "geographic_detail"
-        }
-      ]
-    },
-    {
-      "thesis_id": "UNH-001",
-      "ticker": "UNH",
-      "thesis_text": "UnitedHealth's combination of insurance and health services diversifies its earnings.",
-      "claims": [
-        {
-          "claim_id": "UNH-001-C1",
-          "text": "UnitedHealth reports Optum as a business alongside its insurance operations.",
-          "expected_verdict": "supported",
-          "evidence_type": "segment_disclosure"
-        },
-        {
-          "claim_id": "UNH-001-C2",
-          "text": "UnitedHealth operates without oversight from federal or state healthcare regulators.",
-          "expected_verdict": "contradicted",
-          "evidence_type": "risk_factors"
-        },
-        {
-          "claim_id": "UNH-001-C3",
-          "text": "UnitedHealth's medical loss ratio will improve by 200 basis points next year.",
-          "expected_verdict": "insufficient_evidence",
-          "evidence_type": "forward_looking"
-        }
-      ]
-    },
-    {
-      "thesis_id": "LLY-001",
-      "ticker": "LLY",
-      "thesis_text": "Eli Lilly's incretin franchise reshapes its growth outlook and manufacturing needs.",
-      "claims": [
-        {
-          "claim_id": "LLY-001-C1",
-          "text": "Eli Lilly discusses patent protection and exclusivity as material to its business.",
-          "expected_verdict": "supported",
-          "evidence_type": "risk_factors"
-        },
-        {
-          "claim_id": "LLY-001-C2",
-          "text": "Eli Lilly reports that its products require no regulatory approval before sale.",
-          "expected_verdict": "contradicted",
-          "evidence_type": "risk_factors"
-        },
-        {
-          "claim_id": "LLY-001-C3",
-          "text": "Eli Lilly will gain approval for an oral obesity treatment within 18 months.",
-          "expected_verdict": "insufficient_evidence",
-          "evidence_type": "forward_looking"
-        }
-      ]
-    },
-    {
-      "thesis_id": "WMT-001",
-      "ticker": "WMT",
-      "thesis_text": "Walmart's scale and e-commerce investment defend its position against online retail.",
-      "claims": [
-        {
-          "claim_id": "WMT-001-C1",
-          "text": "Walmart describes eCommerce as part of its omni-channel retail strategy.",
-          "expected_verdict": "supported",
-          "evidence_type": "business_description"
-        },
-        {
-          "claim_id": "WMT-001-C2",
-          "text": "Walmart operates exclusively within the United States.",
-          "expected_verdict": "contradicted",
-          "evidence_type": "segment_disclosure"
-        },
-        {
-          "claim_id": "WMT-001-C3",
-          "text": "Walmart's grocery market share will surpass 30% within three years.",
-          "expected_verdict": "insufficient_evidence",
-          "evidence_type": "forward_looking"
-        }
-      ]
-    },
-    {
-      "thesis_id": "KO-001",
-      "ticker": "KO",
-      "thesis_text": "Coca-Cola's brand strength supports pricing power across a concentrate-led model.",
-      "claims": [
-        {
-          "claim_id": "KO-001-C1",
-          "text": "Coca-Cola describes selling concentrates and syrups to bottling partners.",
-          "expected_verdict": "supported",
-          "evidence_type": "business_description"
-        },
-        {
-          "claim_id": "KO-001-C2",
-          "text": "Coca-Cola states that currency fluctuations have no effect on its reported results.",
-          "expected_verdict": "contradicted",
-          "evidence_type": "risk_factors"
-        },
-        {
-          "claim_id": "KO-001-C3",
-          "text": "Coca-Cola's sparkling volume in Japan declined more than in Mexico.",
           "expected_verdict": "insufficient_evidence",
           "evidence_type": "geographic_detail"
         }
