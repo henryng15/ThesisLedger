@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "apps.core",
     "apps.ledger",
+    "apps.ingestion",
+    "apps.rag",
 ]
 
 MIDDLEWARE = [
