@@ -48,24 +48,43 @@ The same list is hardcoded in `scripts/download_filings.py` (`DEFAULT_TICKERS`) 
 `backend/apps/ledger/management/commands/seed_companies.py` (`COMPANIES`). Changing
 one without the other means `ingest_filings` silently skips that ticker.
 
+## Current state (verified 2026-07-31)
+
+**19 filings, 75 MB.** Two most recent 10-Ks per company (XOM and JPM have one
+year each where only a single 10-K falls in the API's recent window).
+
+| Ticker | Filings | Size | Ticker | Filings | Size |
+|---|---|---|---|---|---|
+| AAPL | 2 | 3.0M | UNH | 2 | 5.5M |
+| MSFT | 2 | 16M | LLY | 2 | 5.4M |
+| NVDA | 2 | 3.9M | WMT | 2 | 4.5M |
+| JPM | 1 | 13M | KO | 2 | 7.4M |
+| V | 2 | 5.6M | XOM | 2 | 12M |
+
+Each filing is stored as `10k_{YEAR}.htm` (the primary document) plus a
+`10k_{YEAR}.meta.json` recording accession number, period end, filing date and
+source URL.
+
+**Nothing here is committed to git.** 75 MB of HTML does not belong in the repo,
+and the download is reproducible in about 20 seconds — just run the script.
+
 ## Downloading Filings
 
 Run the download script from the project root:
 
 ```bash
-python scripts/download_filings.py
+# SEC rejects requests whose User-Agent has no contact email, so this is required.
+SEC_USER_AGENT="ThesisLedger/0.1 (you@example.com)" python scripts/download_filings.py
 
-# Or specify custom tickers:
-python scripts/download_filings.py --tickers AAPL MSFT GOOGL
+# More years per company:
+... --per-ticker 4
 
-# Or set a custom output directory:
-python scripts/download_filings.py --output-dir /path/to/data
+# Different companies (falls back to SEC's live ticker→CIK map):
+... --tickers AAPL MSFT GOOGL
 ```
 
-Set the SEC User-Agent in `.env` or via CLI:
-```bash
-SEC_USER_AGENT="YourOrg/1.0 (your.email@example.com)" python scripts/download_filings.py
-```
+Re-running is safe: files already on disk are skipped, so this is an incremental
+top-up rather than a full re-download.
 
 ## Rate Limiting
 
