@@ -1,59 +1,175 @@
-.intro {
-  max-width: 40rem;
-  margin-bottom: 1.75rem;
-}
-
-.title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-text);
-  margin-bottom: 0.4rem;
-}
-
-.subtitle {
-  color: var(--color-text-muted);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.form {
-  max-width: 40rem;
-  padding: 1.5rem;
+.wrap {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  animation: fadeUp 340ms var(--ease) both;
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.title {
+  font-size: clamp(1.7rem, 6vw, 2.35rem);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.lede {
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: 34rem;
+}
+
+.steps {
+  display: none;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem 0.4rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.stepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.formCard {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  animation: fadeUp 340ms var(--ease) 80ms both;
+}
+
+.emptyText {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.emptyText code {
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.85em;
+}
+
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
-.helpText {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+.meter {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.meterFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 160ms var(--ease), background-color var(--dur) var(--ease);
+}
+
+.meterNear {
+  background: var(--warn);
+}
+
+.meterOver {
+  background: var(--neg);
 }
 
 .charCount {
   align-self: flex-end;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  transition: color var(--dur) var(--ease);
+}
+
+.charCountNear {
+  color: var(--warn);
 }
 
 .charCountOver {
-  color: var(--color-danger-text);
-  font-weight: 600;
+  color: var(--neg);
+  font-weight: 700;
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.submit {
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.btnSpinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 768px) {
+  .wrap {
+    gap: 2rem;
+  }
+  .formCard {
+    padding: 1.85rem;
+  }
+  .steps {
+    display: flex;
+  }
 }

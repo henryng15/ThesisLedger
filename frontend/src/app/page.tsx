@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
+import { Spinner } from "@/components/Spinner";
 import type { Company } from "@/lib/api/types";
 import styles from "./page.module.css";
 
 const MAX_THESIS_LENGTH = 5000;
+
+const STEPS = ["Your thesis", "Up to 5 claims", "Cited evidence"];
 
 export default function HomePage() {
   const router = useRouter();
@@ -51,6 +54,8 @@ export default function HomePage() {
 
   const trimmedLength = thesisText.trim().length;
   const overLimit = thesisText.length > MAX_THESIS_LENGTH;
+  const fillPct = Math.min(100, (thesisText.length / MAX_THESIS_LENGTH) * 100);
+  const nearLimit = fillPct >= 90 && !overLimit;
   const canSubmit =
     !submitting &&
     Boolean(companies?.length) &&
@@ -78,23 +83,32 @@ export default function HomePage() {
   }
 
   return (
-    <div>
-      <div className={styles.intro}>
-        <h1 className={styles.title}>Start a new analysis</h1>
-        <p className={styles.subtitle}>
-          Pick a company and write your investment thesis. ThesisLedger extracts up
-          to five testable claims and checks each one against that company&apos;s SEC
-          filings.
+    <div className={styles.wrap}>
+      <header className={styles.hero}>
+        <span className={styles.eyebrow}>SEC-grounded · no fabricated citations</span>
+        <h1 className={styles.title}>Pressure-test your investment thesis.</h1>
+        <p className={styles.lede}>
+          ThesisLedger breaks your thesis into up to five testable claims and checks
+          each one against the company&apos;s SEC filings — every verdict quotes a real
+          passage.
         </p>
-      </div>
+        <ol className={styles.steps} aria-label="How it works">
+          {STEPS.map((step, i) => (
+            <li key={step} className={styles.step}>
+              <span className={styles.stepNum}>{i + 1}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </header>
 
       {companiesError && (
-        <div className={`errorBanner`} role="alert" style={{ marginBottom: "1.25rem" }}>
+        <div className="errorBanner" role="alert">
           <p>Could not load companies: {companiesError}</p>
           <button
             type="button"
             className="button buttonSecondary"
-            style={{ marginTop: "0.6rem" }}
+            style={{ marginTop: "0.7rem" }}
             onClick={retryLoadCompanies}
           >
             Retry
@@ -103,20 +117,23 @@ export default function HomePage() {
       )}
 
       {!companiesError && companies === null && (
-        <p className={styles.subtitle} role="status">
-          Loading companies&hellip;
-        </p>
+        <div className={styles.formCard}>
+          <Spinner label="Loading companies…" />
+        </div>
       )}
 
       {!companiesError && companies !== null && companies.length === 0 && (
-        <p className={styles.subtitle} role="status">
-          No companies are configured yet. Run{" "}
-          <code>manage.py seed_companies</code> on the backend, then reload this page.
-        </p>
+        <div className={`card ${styles.formCard}`}>
+          <p className={styles.emptyText}>
+            No companies are available to analyze yet. If you&apos;re running this
+            locally, seed them with <code>manage.py seed_companies</code> on the backend,
+            then reload.
+          </p>
+        </div>
       )}
 
       {!companiesError && companies !== null && companies.length > 0 && (
-        <form className={`card ${styles.form}`} onSubmit={handleSubmit}>
+        <form className={`card ${styles.formCard}`} onSubmit={handleSubmit}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="company">
               Company
@@ -131,7 +148,7 @@ export default function HomePage() {
             >
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
-                  {company.ticker} &mdash; {company.name}
+                  {company.ticker} — {company.name}
                 </option>
               ))}
             </select>
@@ -151,11 +168,21 @@ export default function HomePage() {
               aria-describedby="thesis-char-count"
               required
             />
+            <div className={styles.meter} aria-hidden="true">
+              <div
+                className={`${styles.meterFill} ${overLimit ? styles.meterOver : ""} ${
+                  nearLimit ? styles.meterNear : ""
+                }`}
+                style={{ width: `${fillPct}%` }}
+              />
+            </div>
             <span
               id="thesis-char-count"
-              className={`${styles.charCount} ${overLimit ? styles.charCountOver : ""}`}
+              className={`${styles.charCount} ${overLimit ? styles.charCountOver : ""} ${
+                nearLimit ? styles.charCountNear : ""
+              }`}
             >
-              {thesisText.length} / {MAX_THESIS_LENGTH}
+              {thesisText.length.toLocaleString()} / {MAX_THESIS_LENGTH.toLocaleString()}
             </span>
           </div>
 
@@ -165,11 +192,16 @@ export default function HomePage() {
             </div>
           )}
 
-          <div className={styles.actions}>
-            <button type="submit" className="button buttonPrimary" disabled={!canSubmit}>
-              {submitting ? "Generating claims…" : "Generate claims"}
-            </button>
-          </div>
+          <button type="submit" className={`button buttonPrimary ${styles.submit}`} disabled={!canSubmit}>
+            {submitting ? (
+              <>
+                <span className={styles.btnSpinner} aria-hidden="true" />
+                Generating claims…
+              </>
+            ) : (
+              "Generate claims"
+            )}
+          </button>
         </form>
       )}
     </div>
