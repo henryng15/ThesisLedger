@@ -70,3 +70,6 @@ htmlcov/
 .ruff_cache/
 .venv-test/
 eval/results.json
+
+# Local-only Docker Compose overrides
+docker-compose.override.yml
