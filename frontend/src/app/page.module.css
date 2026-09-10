@@ -57,3 +57,13 @@
   align-items: center;
   gap: 0.75rem;
 }
+
+@media (max-width: 640px) {
+  .form {
+    padding: 1.1rem;
+  }
+
+  .actions :global(.button) {
+    width: 100%;
+  }
+}

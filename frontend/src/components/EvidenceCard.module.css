@@ -74,23 +74,6 @@
   color: var(--color-text);
 }
 
-.metaRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1rem;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
-.metaItem {
-  display: inline-flex;
-  gap: 0.3rem;
-}
-
-.metaLabel {
-  font-weight: 600;
-}
-
 .similarity {
   font-size: 0.8rem;
   color: var(--color-text-muted);
@@ -102,7 +85,72 @@
   font-style: italic;
 }
 
-.sourceLink {
+.citation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.citationHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.citationBadge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   color: var(--color-navy);
+  background: var(--color-neutral-bg);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.4rem;
+}
+
+.citationSection {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.citationDates {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sourceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  color: var(--color-navy);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sourceLink:hover {
   text-decoration: underline;
+}
+
+.sourceLinkIcon {
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .claimRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .card {
+    padding: 0.95rem 1rem;
+  }
 }

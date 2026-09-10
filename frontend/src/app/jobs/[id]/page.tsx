@@ -7,6 +7,7 @@ import { api } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import { saveLastJobId } from "@/lib/storage";
 import { EvidenceCard } from "@/components/EvidenceCard";
+import { Spinner } from "@/components/Spinner";
 import type { AnalysisJob, JobStatus } from "@/lib/api/types";
 import styles from "./job.module.css";
 
@@ -83,7 +84,9 @@ function JobPageInner() {
 
       {process.env.NODE_ENV === "development" && (
         <div className="noticeBanner" style={{ marginBottom: "1.25rem" }}>
-          Analysis results are currently backed by mock Day 4 job data.
+          Dev note: evidence quality below depends on whether the backend is
+          running in mock or real analysis mode — check with whoever's running
+          it if a result looks off.
         </div>
       )}
 
@@ -101,7 +104,7 @@ function JobPageInner() {
         </div>
       )}
 
-      {!job && !error && <p role="status">Loading analysis job&hellip;</p>}
+      {!job && !error && <Spinner size="lg" label="Loading analysis job…" />}
 
       {job && (
         <>
@@ -124,9 +127,7 @@ function JobPageInner() {
           )}
 
           {!TERMINAL_STATUSES.includes(job.status) && job.results.length === 0 && (
-            <p className={styles.waiting} role="status">
-              Waiting for the first result&hellip; polling every 2 seconds.
-            </p>
+            <Spinner label="Waiting for the first result… checking every 2 seconds." />
           )}
 
           {job.results.length > 0 && (
@@ -146,7 +147,7 @@ function JobPageInner() {
 
 export default function JobPage() {
   return (
-    <Suspense fallback={<p role="status">Loading analysis job&hellip;</p>}>
+    <Suspense fallback={<Spinner size="lg" label="Loading analysis job…" />}>
       <JobPageInner />
     </Suspense>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
+import { Spinner } from "@/components/Spinner";
 import type { Company } from "@/lib/api/types";
 import styles from "./page.module.css";
 
@@ -102,16 +103,13 @@ export default function HomePage() {
         </div>
       )}
 
-      {!companiesError && companies === null && (
-        <p className={styles.subtitle} role="status">
-          Loading companies&hellip;
-        </p>
-      )}
+      {!companiesError && companies === null && <Spinner label="Loading companies…" />}
 
       {!companiesError && companies !== null && companies.length === 0 && (
         <p className={styles.subtitle} role="status">
-          No companies are configured yet. Run{" "}
-          <code>manage.py seed_companies</code> on the backend, then reload this page.
+          No companies are available to analyze yet. If you&apos;re running this
+          locally, seed them with <code>manage.py seed_companies</code> on the
+          backend, then reload this page.
         </p>
       )}
 

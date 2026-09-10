@@ -42,18 +42,13 @@ export function EvidenceCard({ claim, evidence }: EvidenceCardProps) {
       )}
 
       {source ? (
-        <div className={styles.metaRow}>
-          <span className={styles.metaItem}>
-            <span className={styles.metaLabel}>Section:</span> {source.section}
-          </span>
-          <span className={styles.metaItem}>
-            <span className={styles.metaLabel}>Filing:</span> {source.filing_type}
-          </span>
-          <span className={styles.metaItem}>
-            <span className={styles.metaLabel}>Period end:</span> {source.period_end}
-          </span>
-          <span className={styles.metaItem}>
-            <span className={styles.metaLabel}>Filed:</span> {source.filed_at}
+        <div className={styles.citation}>
+          <div className={styles.citationHeading}>
+            <span className={styles.citationBadge}>{source.filing_type}</span>
+            <span className={styles.citationSection}>{source.section}</span>
+          </div>
+          <span className={styles.citationDates}>
+            Period ending {source.period_end} &middot; Filed {source.filed_at}
           </span>
           <a
             className={styles.sourceLink}
@@ -61,6 +56,22 @@ export function EvidenceCard({ claim, evidence }: EvidenceCardProps) {
             target="_blank"
             rel="noopener noreferrer"
           >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              aria-hidden="true"
+              className={styles.sourceLinkIcon}
+            >
+              <path
+                d="M5 1H1v10h10V7M7 1h4v4M11 1 5.5 6.5"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
             View filing
           </a>
         </div>

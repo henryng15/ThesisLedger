@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errors";
 import { saveLastJobId } from "@/lib/storage";
+import { Spinner } from "@/components/Spinner";
 import type { Claim, Thesis } from "@/lib/api/types";
 import styles from "./claims.module.css";
 
@@ -18,6 +19,7 @@ export default function ClaimReviewPage() {
 
   const [thesis, setThesis] = useState<Thesis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [awaitingClaims, setAwaitingClaims] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -51,9 +53,11 @@ export default function ClaimReviewPage() {
         setSelectedIds(new Set(loaded.claims.filter((c) => c.is_approved).map((c) => c.id)));
 
         if (loaded.status === "draft" && loaded.claims.length === 0) {
+          setAwaitingClaims(true);
           timer = setTimeout(loadThesis, 3000);
           return;
         }
+        setAwaitingClaims(false);
       } catch (err) {
         if (cancelled) return;
         setLoadError(errorMessage(err));
@@ -229,7 +233,16 @@ export default function ClaimReviewPage() {
   }
 
   if (loading) {
-    return <p role="status">Loading thesis&hellip;</p>;
+    return (
+      <Spinner
+        size="lg"
+        label={
+          awaitingClaims
+            ? "Generating claims — this can take a minute or two…"
+            : "Loading thesis…"
+        }
+      />
+    );
   }
 
   if (loadError) {
