@@ -1,122 +1,135 @@
 .header {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1.5rem;
+  gap: 0.5rem;
+  margin-bottom: 1.75rem;
 }
 
 .title {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: 1.55rem;
+  font-weight: 800;
 }
 
 .meta {
-  color: var(--color-text-muted);
+  color: var(--text-muted);
   font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .thesisText {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  max-width: 44rem;
-  line-height: 1.5;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  max-width: 42rem;
+  line-height: 1.6;
 }
 
 .statusBadge {
   display: inline-flex;
   width: fit-content;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
+  margin-top: 0.15rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
-  background: var(--color-neutral-bg);
-  color: var(--color-neutral-text);
-  border: 1px solid var(--color-neutral-border);
+  letter-spacing: 0.04em;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
 }
 
 .statusApproved {
-  background: var(--color-success-bg);
-  color: var(--color-success-text);
-  border-color: var(--color-success-border);
+  background: var(--pos-soft);
+  color: var(--pos);
+  border-color: var(--pos-line);
 }
 
 .listHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
 .selectAllLabel {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
 .claimList {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.7rem;
   list-style: none;
   padding: 0;
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.75rem;
 }
 
 .claimRow {
   display: flex;
   align-items: flex-start;
-  gap: 0.85rem;
-  padding: 0.9rem 1.1rem;
+  gap: 0.9rem;
+  padding: 1rem 1.15rem;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+.claimRowSelected {
+  border-color: var(--accent-line);
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-elevated);
 }
 
 .claimCheckbox {
-  margin-top: 0.3rem;
+  margin-top: 0.15rem;
   flex-shrink: 0;
-  width: 1.05rem;
-  height: 1.05rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .claimBody {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
   min-width: 0;
 }
 
 .claimTopRow {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
 .ordinal {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  font-weight: 600;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .originBadge {
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-text-muted);
-  background: var(--color-neutral-bg);
-  border: 1px solid var(--color-neutral-border);
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 0.1rem 0.4rem;
 }
 
 .claimText {
-  font-size: 0.95rem;
-  line-height: 1.45;
-  color: var(--color-text);
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--text);
 }
 
 .claimActions {
@@ -127,26 +140,26 @@
 .editRow {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
 .footerActions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
   flex-wrap: wrap;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
 }
 
 .helpText {
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  color: var(--text-muted);
 }
 
 @media (max-width: 640px) {
   .claimRow {
-    padding: 0.75rem 0.9rem;
+    padding: 0.85rem 0.95rem;
   }
 
   .footerActions :global(.button) {

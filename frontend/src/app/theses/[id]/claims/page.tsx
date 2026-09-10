@@ -321,12 +321,19 @@ export default function ClaimReviewPage() {
               const isSaving = savingEditId === claim.id;
               const isDeleting = deletingId === claim.id;
 
+              const isSelected = selectedIds.has(claim.id);
+
               return (
-                <li key={claim.id} className={`card ${styles.claimRow}`}>
+                <li
+                  key={claim.id}
+                  className={`card ${styles.claimRow} ${
+                    isSelected ? styles.claimRowSelected : ""
+                  }`}
+                >
                   <input
                     type="checkbox"
                     className={styles.claimCheckbox}
-                    checked={selectedIds.has(claim.id)}
+                    checked={isSelected}
                     onChange={() => toggleSelected(claim.id)}
                     disabled={approving || isEditing}
                     aria-label={`Select claim ${claim.ordinal + 1}: ${claim.text}`}
